@@ -1,0 +1,29 @@
+# Rust
+target/
+Cargo.lock
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Node / frontend
+node_modules/
+dist/
+frontend/dist/
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

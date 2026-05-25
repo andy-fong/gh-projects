@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0d1117;
+  color: #e6edf3;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: #388bfd33;
+  border: 1px dashed #388bfd;
+  border-radius: 6px;
+}
