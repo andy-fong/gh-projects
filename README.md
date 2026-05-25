@@ -72,6 +72,7 @@ These are always applied with no configuration needed:
 |---|---|
 | `author` | `login` |
 | `repository` | `nameWithOwner` |
+| `assignees` | `name\|login` |
 
 ### Global extractors (Settings → sidebar gear icon)
 
@@ -81,6 +82,14 @@ Open **Settings** from the bottom of the sidebar to add or override extractors t
 {
   "assignees": "login",
   "reviewRequests": "login"
+}
+```
+
+Use `|` to specify fallback fields — the first non-empty value wins:
+
+```json
+{
+  "assignees": "name|login"
 }
 ```
 

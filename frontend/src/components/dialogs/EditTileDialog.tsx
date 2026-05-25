@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Plus, Trash2 } from 'lucide-react'
 import type { Tile } from '../../types'
 
 interface Props {
@@ -11,11 +11,25 @@ interface Props {
 export default function EditTileDialog({ tile, onConfirm, onClose }: Props) {
   const config = JSON.parse(tile.config)
   const [title, setTitle] = useState(tile.title)
-  const [command, setCommand] = useState(config.command ?? '')
+  const [commands, setCommands] = useState<string[]>(
+    config.commands?.length ? config.commands : [config.command ?? '']
+  )
   const [extractorsJson, setExtractorsJson] = useState(
     JSON.stringify(config.field_extractors ?? {}, null, 2)
   )
   const [jsonError, setJsonError] = useState<string | null>(null)
+
+  function setCommand(i: number, val: string) {
+    setCommands(prev => prev.map((c, idx) => idx === i ? val : c))
+  }
+
+  function addCommand() {
+    setCommands(prev => [...prev, ''])
+  }
+
+  function removeCommand(i: number) {
+    setCommands(prev => prev.filter((_, idx) => idx !== i))
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -24,7 +38,8 @@ export default function EditTileDialog({ tile, onConfirm, onClose }: Props) {
         const field_extractors = JSON.parse(extractorsJson || '{}')
         if (typeof field_extractors !== 'object' || Array.isArray(field_extractors))
           throw new Error('Must be a JSON object')
-        onConfirm({ title, config: { ...config, command, field_extractors } })
+        const filled = commands.filter(c => c.trim())
+        onConfirm({ title, config: { ...config, command: filled[0], commands: filled, field_extractors } })
       } catch (err) {
         setJsonError((err as Error).message)
       }
@@ -35,7 +50,7 @@ export default function EditTileDialog({ tile, onConfirm, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 w-[500px] shadow-xl" onClick={e => e.stopPropagation()}>
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 w-[560px] shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold">Edit Tile</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
@@ -43,13 +58,36 @@ export default function EditTileDialog({ tile, onConfirm, onClose }: Props) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Title</label>
-            <input value={title} onChange={e => setTitle(e.target.value)} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white outline-none focus:border-blue-500" />
+            <input value={title} onChange={e => setTitle(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white outline-none focus:border-blue-500" />
           </div>
           {tile.tile_type === 'gh_query' && (
             <>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">gh command</label>
-                <input value={command} onChange={e => setCommand(e.target.value)} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm font-mono text-white outline-none focus:border-blue-500" />
+                <label className="block text-xs text-gray-400 mb-1">
+                  gh command(s)
+                  <span className="ml-2 text-gray-600 font-normal">— multiple commands are merged into one table</span>
+                </label>
+                <div className="space-y-2">
+                  {commands.map((cmd, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input
+                        value={cmd}
+                        onChange={e => setCommand(i, e.target.value)}
+                        className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm font-mono text-white outline-none focus:border-blue-500"
+                      />
+                      {commands.length > 1 && (
+                        <button type="button" onClick={() => removeCommand(i)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={addCommand}
+                  className="mt-2 flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300">
+                  <Plus className="w-3 h-3" /> Add command
+                </button>
               </div>
               <div>
                 <label className="block text-xs text-gray-400 mb-1">

@@ -37,10 +37,9 @@ export interface Tile {
 }
 
 export interface GhQueryConfig {
-  command: string
+  command: string        // single command (legacy / simple case)
+  commands?: string[]    // multiple commands — results are merged into one table
   columns?: string[]
-  // Per-tile overrides: maps column name → sub-field to extract for display/sort.
-  // Merged on top of DEFAULT_FIELD_EXTRACTORS. e.g. { "author": "login", "assignees": "0.login" }
   field_extractors?: Record<string, string>
 }
 

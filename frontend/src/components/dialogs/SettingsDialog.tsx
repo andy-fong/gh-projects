@@ -53,6 +53,9 @@ export default function SettingsDialog({ onClose }: Props) {
             />
             {jsonError && <p className="text-xs text-red-400 mt-1">{jsonError}</p>}
             <p className="text-xs text-gray-600 mt-1">
+              Use <code className="text-gray-500">|</code> for fallbacks: <code className="text-gray-500">"name|login"</code> tries <code className="text-gray-500">name</code> first, falls back to <code className="text-gray-500">login</code> if empty.
+            </p>
+            <p className="text-xs text-gray-600 mt-1">
               Built-in defaults (always applied unless overridden):
               <code className="ml-1 text-gray-500">{defaults}</code>
             </p>
