@@ -381,16 +381,17 @@ export default function GhQueryTile({ config, tileId }: Props) {
                   const isActive = (filters[k] ?? []).includes(display)
                   const repo = rowRepo(row)
                   const cell = k === 'number' && url
+                    ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline tabular-nums">{display}</a>
+                    : k === 'title' && url && repo
                     ? (
-                      <button
-                        onClick={() => repo
-                          ? setDetailItem({ repo, refType: rowRefType(row, commands), number: Number(display), url })
-                          : window.open(url, '_blank')
-                        }
-                        className="text-blue-400 hover:text-blue-300 hover:underline tabular-nums"
-                      >
-                        {display}
-                      </button>
+                      <Tooltip text={tooltipText}>
+                        <span
+                          onClick={() => setDetailItem({ repo, refType: rowRefType(row, commands), number: Number(row.number), url })}
+                          className="cursor-pointer hover:text-blue-300 hover:underline"
+                        >
+                          {display}
+                        </span>
+                      </Tooltip>
                     )
                     : (
                       <Tooltip text={tooltipText}>
