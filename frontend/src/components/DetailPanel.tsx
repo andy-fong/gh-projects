@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { X, ExternalLink, Plus, GitPullRequest, CircleDot, GitMerge, MessageSquare, StickyNote } from 'lucide-react'
 import { api } from '../api/client'
 import NoteDialog from './dialogs/NoteDialog'
@@ -80,7 +81,7 @@ function Comment({ author, body, createdAt, label }: { author: string; body: str
         {label && <span className="text-xs text-gray-500 italic">{label}</span>}
       </div>
       <div className="px-3 py-2 prose prose-invert prose-xs max-w-none text-gray-300 text-xs">
-        <ReactMarkdown>{body || '*No content*'}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{(body || '*No content*').replace(/<!--[\s\S]*?-->/g, '')}</ReactMarkdown>
       </div>
     </div>
   )
@@ -241,7 +242,7 @@ export default function DetailPanel({ repo, refType, number, url, onClose }: Pro
                       <div key={note.id} className="border border-gray-700 rounded-lg px-3 py-2">
                         <div className="text-xs font-medium text-gray-300 mb-1">{note.title}</div>
                         <div className="prose prose-invert prose-xs max-w-none text-gray-400 text-xs">
-                          <ReactMarkdown>{note.body || '*No content*'}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.body || '*No content*'}</ReactMarkdown>
                         </div>
                       </div>
                     ))}
