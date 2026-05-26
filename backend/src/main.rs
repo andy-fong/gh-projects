@@ -38,6 +38,8 @@ async fn main() -> anyhow::Result<()> {
         notes: Arc::new(SqliteNoteRepository::new(pool.clone())),
         dashboards: Arc::new(SqliteDashboardRepository::new(pool.clone())),
         tiles: Arc::new(SqliteTileRepository::new(pool.clone())),
+        cache_dir: config.cache_dir.clone(),
+        cache_ttl_secs: config.cache_ttl_secs,
     };
 
     let cors = CorsLayer::new()
@@ -57,6 +59,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/dashboards/:dashboard_id/tiles/:tile_id", put(handlers::tiles::update_tile).delete(handlers::tiles::delete_tile))
         // GH CLI
         .route("/api/gh/execute", post(handlers::gh::execute_gh))
+        // Cache
+        .route("/api/cache/invalidate", post(handlers::gh::invalidate_cache))
+        .route("/api/cache/status", get(handlers::gh::cache_status))
         .layer(cors)
         .with_state(state);
 

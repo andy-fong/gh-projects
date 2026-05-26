@@ -33,6 +33,19 @@ Override defaults with environment variables:
 DATABASE_URL=sqlite:///tmp/mydb.db PORT=8080 cargo run -p gh-projects-backend
 ```
 
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `sqlite://gh-projects.db` | SQLite connection string |
+| `PORT` | `3001` | Port the backend listens on |
+| `CACHE_DIR` | `.cache` | Directory where cached `gh` results are stored (relative to the working directory, or an absolute path) |
+| `CACHE_TTL_SECS` | `300` | How long a cached result is considered fresh (seconds). After this, the next request re-runs `gh` and refreshes the file. |
+
+Example — store the cache in `/tmp` and keep results for 10 minutes:
+
+```bash
+CACHE_DIR=/tmp/gh-cache CACHE_TTL_SECS=600 cargo run -p gh-projects-backend
+```
+
 ### Frontend
 
 ```bash
@@ -157,4 +170,6 @@ gh-projects/
 | GET/PUT/DELETE | `/api/dashboards/:id` | Get / update / delete dashboard |
 | GET/POST | `/api/dashboards/:id/tiles` | List / create tiles |
 | PUT/DELETE | `/api/dashboards/:id/tiles/:tid` | Update / delete tile |
-| POST | `/api/gh/execute` | Run a `gh` CLI command, returns JSON output |
+| POST | `/api/gh/execute` | Run a `gh` CLI command, returns JSON output (`cached: true` when served from disk) |
+| POST | `/api/cache/invalidate` | Mark all current cache entries as invalidated (writes a timestamp; no files are deleted) |
+| GET | `/api/cache/status` | Return current `cache_dir`, `ttl_secs`, and `invalidated_at` timestamp |

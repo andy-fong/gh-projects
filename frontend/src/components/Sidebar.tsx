@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { LayoutDashboard, StickyNote, Plus, Github, Settings } from 'lucide-react'
+import { LayoutDashboard, StickyNote, Plus, Github, Settings, RefreshCcw } from 'lucide-react'
 import { api } from '../api/client'
 import SettingsDialog from './dialogs/SettingsDialog'
 import type { Dashboard } from '../types'
@@ -16,6 +16,17 @@ export default function Sidebar({ dashboards }: Props) {
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [invalidating, setInvalidating] = useState(false)
+
+  async function handleInvalidateCache() {
+    setInvalidating(true)
+    try {
+      await api.cache.invalidate()
+      qc.invalidateQueries({ queryKey: ['gh'] })
+    } finally {
+      setInvalidating(false)
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -72,7 +83,16 @@ export default function Sidebar({ dashboards }: Props) {
           <StickyNote className="w-4 h-4" /> Notes
         </Link>
       </nav>
-      <div className="p-2 border-t border-gray-700">
+      <div className="p-2 border-t border-gray-700 space-y-1">
+        <button
+          onClick={handleInvalidateCache}
+          disabled={invalidating}
+          className="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-gray-500 hover:text-gray-300 hover:bg-gray-700 w-full disabled:opacity-50"
+          title="Invalidate all cached gh CLI results"
+        >
+          <RefreshCcw className={`w-4 h-4 ${invalidating ? 'animate-spin' : ''}`} />
+          {invalidating ? 'Invalidating…' : 'Invalidate cache'}
+        </button>
         <button
           onClick={() => setShowSettings(true)}
           className="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-gray-500 hover:text-gray-300 hover:bg-gray-700 w-full"

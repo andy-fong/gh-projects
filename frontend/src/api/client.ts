@@ -41,6 +41,10 @@ export const api = {
     delete: (dashboardId: number, tileId: number) => req<void>(`/dashboards/${dashboardId}/tiles/${tileId}`, { method: 'DELETE' }),
   },
   gh: {
-    execute: (command: string) => req<{ output: unknown; raw: string }>('/gh/execute', { method: 'POST', body: JSON.stringify({ command }) }),
+    execute: (command: string) => req<{ output: unknown; raw: string; cached: boolean }>('/gh/execute', { method: 'POST', body: JSON.stringify({ command }) }),
+  },
+  cache: {
+    invalidate: () => req<{ invalidated_at: number }>('/cache/invalidate', { method: 'POST' }),
+    status: () => req<{ cache_dir: string; ttl_secs: number; invalidated_at: number | null }>('/cache/status'),
   },
 }
