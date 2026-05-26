@@ -6,6 +6,7 @@ import { api } from '../../api/client'
 import { extractDisplay } from '../../lib/fieldExtractors'
 import { useSettings } from '../../context/SettingsContext'
 import NoteDialog from '../dialogs/NoteDialog'
+import DetailPanel from '../DetailPanel'
 import Tooltip from '../Tooltip'
 import type { CreateNoteInput, GhQueryConfig } from '../../types'
 
@@ -129,6 +130,7 @@ export default function GhQueryTile({ config, tileId }: Props) {
   const [filterAnchor, setFilterAnchor] = useState<DOMRect | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [noteInit, setNoteInit] = useState<Partial<CreateNoteInput> | null>(null)
+  const [detailItem, setDetailItem] = useState<{ repo: string; refType: 'issue' | 'pr'; number: number; url: string } | null>(null)
   const colPickerRef = useRef<HTMLDivElement>(null)
   const { globalExtractors } = useSettings()
   const qc = useQueryClient()
@@ -377,8 +379,19 @@ export default function GhQueryTile({ config, tileId }: Props) {
                   const tooltipText = extractors[k] && typeof val === 'object' && val !== null
                     ? JSON.stringify(val, null, 2) : display
                   const isActive = (filters[k] ?? []).includes(display)
+                  const repo = rowRepo(row)
                   const cell = k === 'number' && url
-                    ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline">{display}</a>
+                    ? (
+                      <button
+                        onClick={() => repo
+                          ? setDetailItem({ repo, refType: rowRefType(row, commands), number: Number(display), url })
+                          : window.open(url, '_blank')
+                        }
+                        className="text-blue-400 hover:text-blue-300 hover:underline tabular-nums"
+                      >
+                        {display}
+                      </button>
+                    )
                     : (
                       <Tooltip text={tooltipText}>
                         <span
@@ -424,6 +437,15 @@ export default function GhQueryTile({ config, tileId }: Props) {
 
       {noteInit !== null && (
         <NoteDialog initialValues={noteInit} onConfirm={handleCreateNote} onClose={() => setNoteInit(null)} />
+      )}
+      {detailItem && (
+        <DetailPanel
+          repo={detailItem.repo}
+          refType={detailItem.refType}
+          number={detailItem.number}
+          url={detailItem.url}
+          onClose={() => setDetailItem(null)}
+        />
       )}
     </div>
   )
