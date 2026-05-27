@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
-import { ChevronUp, ChevronDown, ChevronsUpDown, Columns, StickyNote, Filter, X, Search } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsUpDown, Columns, StickyNote, Filter, X, Search, GripVertical } from 'lucide-react'
 import { api } from '../../api/client'
 import { extractDisplay } from '../../lib/fieldExtractors'
 import { useSettings } from '../../context/SettingsContext'
@@ -19,6 +19,7 @@ type SortDir = 'asc' | 'desc'
 type Filters = Record<string, string[]>
 
 function storageKey(tileId: number) { return `gh-tile-hidden-${tileId}` }
+function orderStorageKey(tileId: number) { return `gh-tile-col-order-${tileId}` }
 
 function parseRepoFromCommand(cmd: string): string | undefined {
   return cmd.match(/--repo\s+(\S+)/)?.[1]
@@ -131,7 +132,14 @@ export default function GhQueryTile({ config, tileId }: Props) {
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [noteInit, setNoteInit] = useState<Partial<CreateNoteInput> | null>(null)
   const [detailItem, setDetailItem] = useState<{ repo: string; refType: 'issue' | 'pr'; number: number; url: string } | null>(null)
+  const [colOrder, setColOrder] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(orderStorageKey(tileId))
+      return stored ? JSON.parse(stored) as string[] : []
+    } catch { return [] }
+  })
   const colPickerRef = useRef<HTMLDivElement>(null)
+  const dragItem = useRef<string | null>(null)
   const { globalExtractors } = useSettings()
   const qc = useQueryClient()
 
@@ -155,6 +163,10 @@ export default function GhQueryTile({ config, tileId }: Props) {
   useEffect(() => {
     localStorage.setItem(storageKey(tileId), JSON.stringify([...hiddenCols]))
   }, [hiddenCols, tileId])
+
+  useEffect(() => {
+    localStorage.setItem(orderStorageKey(tileId), JSON.stringify(colOrder))
+  }, [colOrder, tileId])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -199,7 +211,15 @@ export default function GhQueryTile({ config, tileId }: Props) {
     return config.columns ?? [...seen]
   }, [raw, config.columns])
 
-  const keys = useMemo(() => allKeys.filter(k => !hiddenCols.has(k)), [allKeys, hiddenCols])
+  const orderedAllKeys = useMemo(() => {
+    if (colOrder.length === 0) return allKeys
+    return [
+      ...colOrder.filter(k => allKeys.includes(k)),
+      ...allKeys.filter(k => !colOrder.includes(k)),
+    ]
+  }, [allKeys, colOrder])
+
+  const keys = useMemo(() => orderedAllKeys.filter(k => !hiddenCols.has(k)), [orderedAllKeys, hiddenCols])
 
   const extractors = useMemo(
     () => ({ ...globalExtractors, ...config.field_extractors }),
@@ -219,13 +239,13 @@ export default function GhQueryTile({ config, tileId }: Props) {
   // Unique values per column for the filter dropdowns (computed from unfiltered data)
   const columnValues = useMemo(() => {
     const map: Record<string, string[]> = {}
-    for (const k of allKeys) {
+    for (const k of orderedAllKeys) {
       const seen = new Set<string>()
       for (const row of sorted) seen.add(extractDisplay(row[k], extractors[k]))
       map[k] = [...seen].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     }
     return map
-  }, [sorted, allKeys, extractors])
+  }, [sorted, orderedAllKeys, extractors])
 
   const activeFilterCount = Object.values(filters).filter(v => v.length > 0).length
 
@@ -324,11 +344,37 @@ export default function GhQueryTile({ config, tileId }: Props) {
         </button>
         {showColPicker && (
           <div className="absolute top-full right-0 mt-1 bg-gray-900 border border-gray-700 rounded shadow-xl z-10 py-1 min-w-36">
-            {allKeys.map(k => (
-              <label key={k} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-700 cursor-pointer text-xs text-gray-300">
-                <input type="checkbox" checked={!hiddenCols.has(k)} onChange={() => toggleColumn(k)} className="accent-blue-500" />
-                {k}
-              </label>
+            {orderedAllKeys.map(k => (
+              <div
+                key={k}
+                draggable
+                onDragStart={() => { dragItem.current = k }}
+                onDragOver={e => e.preventDefault()}
+                onDrop={() => {
+                  const from = dragItem.current
+                  dragItem.current = null
+                  if (!from || from === k) return
+                  setColOrder(prev => {
+                    const base = prev.length > 0 ? prev.filter(c => orderedAllKeys.includes(c)) : [...orderedAllKeys]
+                    const missing = orderedAllKeys.filter(c => !base.includes(c))
+                    const order = [...base, ...missing]
+                    const fi = order.indexOf(from)
+                    const ti = order.indexOf(k)
+                    if (fi === -1 || ti === -1) return order
+                    const next = [...order]
+                    next.splice(fi, 1)
+                    next.splice(ti, 0, from)
+                    return next
+                  })
+                }}
+                className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-700 text-xs text-gray-300 cursor-default"
+              >
+                <GripVertical className="w-3 h-3 text-gray-600 cursor-grab shrink-0" />
+                <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                  <input type="checkbox" checked={!hiddenCols.has(k)} onChange={() => toggleColumn(k)} className="accent-blue-500 shrink-0" />
+                  <span className="truncate">{k}</span>
+                </label>
+              </div>
             ))}
           </div>
         )}
