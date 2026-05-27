@@ -81,6 +81,19 @@ issue list --repo kgateway-dev/kgateway --milestone 2.3 --state all --json numbe
 ```
 Click a repo cell value to filter to just that repo.
 
+### Same command across multiple repos (using Variables)
+Use one command with a `{{repo}}` placeholder and set the Variables field to a JSON object with an array:
+
+**Command:**
+```
+issue list --repo {{repos}} --milestone 2.3 --state all --json number,title,state,assignees,updatedAt,url
+```
+**Variables:**
+```json
+{ "repos": ["solo-io/gloo-gateway", "kgateway-dev/kgateway"] }
+```
+The tile runs the command once per array element and merges all results. Only one array variable per tile is supported; additional string variables are substituted directly.
+
 ---
 
 ## Tips

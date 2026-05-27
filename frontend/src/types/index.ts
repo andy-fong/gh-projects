@@ -41,6 +41,7 @@ export interface GhQueryConfig {
   commands?: string[]    // multiple commands — results are merged into one table
   columns?: string[]
   field_extractors?: Record<string, string>
+  variables?: Record<string, string | string[]>  // template vars; array value → one run per element
 }
 
 export interface NoteConfig {

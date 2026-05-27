@@ -135,10 +135,22 @@ export default function GhQueryTile({ config, tileId }: Props) {
   const { globalExtractors } = useSettings()
   const qc = useQueryClient()
 
-  const commands = useMemo(
-    () => config.commands?.length ? config.commands : [config.command],
-    [config.commands, config.command]
-  )
+  const commands = useMemo(() => {
+    const base = config.commands?.length ? config.commands : [config.command]
+    const vars = config.variables ?? {}
+    const arrayEntry = Object.entries(vars).find(([, v]) => Array.isArray(v)) as [string, string[]] | undefined
+    return base.flatMap(cmd => {
+      let expanded = cmd
+      for (const [k, v] of Object.entries(vars)) {
+        if (!Array.isArray(v)) expanded = expanded.replaceAll(`{{${k}}}`, v)
+      }
+      if (arrayEntry) {
+        const [key, values] = arrayEntry
+        return values.map(val => expanded.replaceAll(`{{${key}}}`, val))
+      }
+      return [expanded]
+    })
+  }, [config.commands, config.command, config.variables])
 
   useEffect(() => {
     localStorage.setItem(storageKey(tileId), JSON.stringify([...hiddenCols]))

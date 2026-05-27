@@ -12,6 +12,8 @@ export default function NewTileDialog({ onConfirm, onClose }: Props) {
   const [title, setTitle] = useState('')
   const [commands, setCommands] = useState([''])
   const [noteId, setNoteId] = useState('')
+  const [variablesJson, setVariablesJson] = useState('')
+  const [jsonError, setJsonError] = useState<string | null>(null)
 
   function setCommand(i: number, val: string) {
     setCommands(prev => prev.map((c, idx) => idx === i ? val : c))
@@ -27,12 +29,20 @@ export default function NewTileDialog({ onConfirm, onClose }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const filled = commands.filter(c => c.trim())
-    if (type === 'gh_query' && filled.length === 0) return
-    const config = type === 'gh_query'
-      ? { command: filled[0], commands: filled }
-      : { note_id: Number(noteId) }
-    onConfirm({ title: title || (type === 'gh_query' ? 'GH Query' : 'Note'), tile_type: type, config })
+    if (type === 'gh_query') {
+      const filled = commands.filter(c => c.trim())
+      if (filled.length === 0) return
+      try {
+        const variables = variablesJson.trim() ? JSON.parse(variablesJson) : {}
+        if (typeof variables !== 'object' || Array.isArray(variables))
+          throw new Error('Must be a JSON object')
+        onConfirm({ title: title || 'GH Query', tile_type: type, config: { command: filled[0], commands: filled, variables } })
+      } catch (err) {
+        setJsonError((err as Error).message)
+      }
+    } else {
+      onConfirm({ title: title || 'Note', tile_type: type, config: { note_id: Number(noteId) } })
+    }
   }
 
   return (
@@ -87,13 +97,30 @@ export default function NewTileDialog({ onConfirm, onClose }: Props) {
                 className="mt-2 flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300">
                 <Plus className="w-3 h-3" /> Add command
               </button>
-              <p className="text-xs text-gray-600 mt-1">Omit the leading "gh ". Click any cell value to filter by it.</p>
+              <p className="text-xs text-gray-600 mt-1">Omit the leading "gh ". Use <code className="text-gray-500">{'{{var}}'}</code> for template variables. Click any cell value to filter by it.</p>
             </div>
           ) : (
             <div>
               <label className="block text-xs text-gray-400 mb-1">Note ID</label>
               <input type="number" value={noteId} onChange={e => setNoteId(e.target.value)} placeholder="1"
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm text-white outline-none focus:border-blue-500" required />
+            </div>
+          )}
+          {type === 'gh_query' && (
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Variables
+                <span className="ml-2 text-gray-600 font-normal">— JSON object; array value runs the command once per element</span>
+              </label>
+              <textarea
+                value={variablesJson}
+                onChange={e => { setVariablesJson(e.target.value); setJsonError(null) }}
+                rows={3}
+                spellCheck={false}
+                placeholder={'{\n  "repos": ["owner/repo-a", "owner/repo-b"]\n}'}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm font-mono text-white outline-none focus:border-blue-500 resize-none"
+              />
+              {jsonError && <p className="text-xs text-red-400 mt-1">{jsonError}</p>}
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">
