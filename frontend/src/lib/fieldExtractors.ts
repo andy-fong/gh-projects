@@ -1,3 +1,13 @@
+const ISO_DT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+
+export function isDateTimeString(s: string): boolean {
+  return ISO_DT_RE.test(s)
+}
+
+export function formatDateOnly(s: string): string {
+  return new Date(s).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 // Maps a column name to the sub-field(s) to display when the value is an object.
 // Use "|" to specify fallbacks: "name|login" tries "name" first, falls back to "login".
 // Add entries here to extend defaults, or override per-tile via the tile config.

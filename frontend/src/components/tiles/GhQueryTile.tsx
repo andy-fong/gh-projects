@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { ChevronUp, ChevronDown, ChevronsUpDown, Columns, StickyNote, Filter, X, Search, GripVertical } from 'lucide-react'
 import { api } from '../../api/client'
-import { extractDisplay } from '../../lib/fieldExtractors'
+import { extractDisplay, isDateTimeString, formatDateOnly } from '../../lib/fieldExtractors'
 import { useSettings } from '../../context/SettingsContext'
 import NoteDialog from '../dialogs/NoteDialog'
 import DetailPanel from '../DetailPanel'
@@ -434,12 +434,16 @@ export default function GhQueryTile({ config, tileId }: Props) {
                   const val = row[k]
                   const url = row['url'] as string | undefined
                   const display = extractDisplay(val, extractors[k])
-                  const tooltipText = extractors[k] && typeof val === 'object' && val !== null
+                  const isDateTime = typeof val === 'string' && isDateTimeString(val)
+                  const cellDisplay = isDateTime ? formatDateOnly(val as string) : display
+                  const tooltipText = isDateTime
+                    ? val as string
+                    : extractors[k] && typeof val === 'object' && val !== null
                     ? JSON.stringify(val, null, 2) : display
                   const isActive = (filters[k] ?? []).includes(display)
                   const repo = rowRepo(row)
                   const cell = k === 'number' && url
-                    ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline tabular-nums">{display}</a>
+                    ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline tabular-nums">{cellDisplay}</a>
                     : k === 'title' && url && repo
                     ? (
                       <Tooltip text={tooltipText}>
@@ -447,7 +451,7 @@ export default function GhQueryTile({ config, tileId }: Props) {
                           onClick={() => setDetailItem({ repo, refType: rowRefType(row, commands), number: Number(row.number), url })}
                           className="cursor-pointer hover:text-blue-300 hover:underline"
                         >
-                          {display}
+                          {cellDisplay}
                         </span>
                       </Tooltip>
                     )
@@ -457,7 +461,7 @@ export default function GhQueryTile({ config, tileId }: Props) {
                           onClick={() => handleCellClick(k, display)}
                           className={`cursor-pointer rounded px-0.5 ${isActive ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-gray-600/50'}`}
                         >
-                          {display}
+                          {cellDisplay}
                         </span>
                       </Tooltip>
                     )
