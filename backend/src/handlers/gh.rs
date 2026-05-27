@@ -1,4 +1,5 @@
 use axum::{extract::State, Json};
+use chrono::{Duration, Local};
 use serde::{Deserialize, Serialize};
 use sha1::{Sha1, Digest};
 use std::path::{Path, PathBuf};
@@ -28,6 +29,62 @@ pub struct CacheStatusResponse {
 #[derive(Serialize)]
 pub struct InvalidateCacheResponse {
     pub invalidated_at: u64,
+}
+
+// Replaces {{today}} and {{date:-Nd}} with ISO dates, e.g. {{date:-7d}} → 2026-05-20
+fn substitute_date_vars(cmd: &str) -> String {
+    let mut result = cmd.to_string();
+    let today = Local::now().date_naive();
+
+    result = result.replace("{{today}}", &today.format("%Y-%m-%d").to_string());
+
+    while let Some(start) = result.find("{{date:-") {
+        let end = match result[start..].find("}}") {
+            Some(i) => start + i + 2,
+            None => break,
+        };
+        let token = &result[start..end];
+        let inner = &token[8..token.len() - 2]; // strip "{{date:-" and "}}"
+        let replaced = if let Some(days_str) = inner.strip_suffix('d') {
+            if let Ok(days) = days_str.parse::<i64>() {
+                (today - Duration::days(days)).format("%Y-%m-%d").to_string()
+            } else {
+                token.to_string()
+            }
+        } else {
+            token.to_string()
+        };
+        result = format!("{}{}{}", &result[..start], replaced, &result[end..]);
+    }
+
+    result
+}
+
+// Splits a command string into args, respecting single- and double-quoted spans.
+fn parse_args(cmd: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut chars = cmd.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        match c {
+            '"' | '\'' => {
+                let quote = c;
+                for inner in chars.by_ref() {
+                    if inner == quote { break; }
+                    current.push(inner);
+                }
+            }
+            c if c.is_whitespace() => {
+                if !current.is_empty() {
+                    args.push(std::mem::take(&mut current));
+                }
+            }
+            _ => current.push(c),
+        }
+    }
+    if !current.is_empty() { args.push(current); }
+    args
 }
 
 fn sha1_hex(data: &str) -> String {
@@ -68,7 +125,8 @@ pub async fn execute_gh(
     State(state): State<AppState>,
     Json(req): Json<GhExecuteRequest>,
 ) -> Result<impl axum::response::IntoResponse, AppError> {
-    let cmd_str = req.command.trim_start_matches("gh ").trim();
+    let substituted = substitute_date_vars(req.command.trim_start_matches("gh ").trim());
+    let cmd_str = substituted.as_str();
     let path = cache_path(&state.cache_dir, cmd_str);
     let now = unix_now();
 
@@ -90,9 +148,9 @@ pub async fn execute_gh(
     }
 
     // Cache miss — run gh
-    let args: Vec<&str> = cmd_str.split_whitespace().collect();
+    let args = parse_args(cmd_str);
     let output = Command::new("gh")
-        .args(&args)
+        .args(args)
         .output()
         .map_err(|e| AppError::Command(format!("Failed to run gh: {e}")))?;
 

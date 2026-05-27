@@ -48,6 +48,13 @@ search issues --involves @me --state open --json number,title,repository,updated
 search issues --author @me --state open --json number,title,repository,updatedAt,url
 ```
 
+### Issues created in the past 7 days in a specific repo
+```
+issue list --repo OWNER/REPO --search "created:>{{date:-7d}}" --state all --limit 100 --json number,title,state,assignees,updatedAt,url
+```
+
+> `{{date:-7d}}` is replaced by the backend with today's date minus 7 days (ISO format). Use any number of days, e.g. `{{date:-30d}}`. `{{today}}` gives today's date.
+
 ---
 
 ## Milestones
