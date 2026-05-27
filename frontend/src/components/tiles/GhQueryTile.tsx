@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useQueries, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronUp, ChevronDown, ChevronsUpDown, Columns, StickyNote, Filter, X, Search, GripVertical } from 'lucide-react'
 import { api } from '../../api/client'
 import { extractDisplay, isDateTimeString, formatDateOnly } from '../../lib/fieldExtractors'
@@ -188,6 +188,16 @@ export default function GhQueryTile({ config, tileId }: Props) {
 
   const isLoading = queryResults.some(r => r.isLoading)
   const errors = queryResults.filter(r => r.error).map(r => (r.error as Error).message)
+
+  const { data: allNotes } = useQuery({ queryKey: ['notes'], queryFn: () => api.notes.list(), staleTime: 60_000 })
+  const noteKeySet = useMemo(() => {
+    const s = new Set<string>()
+    for (const n of allNotes ?? []) {
+      if (n.repo && n.ref_type && n.ref_number != null)
+        s.add(`${n.repo}|${n.ref_type}|${n.ref_number}`)
+    }
+    return s
+  }, [allNotes])
 
   const raw = useMemo<Record<string, unknown>[]>(() => {
     return queryResults.flatMap((r, i) => {
@@ -468,11 +478,17 @@ export default function GhQueryTile({ config, tileId }: Props) {
                   return <td key={k} className="py-1 px-2 text-gray-300 max-w-xs truncate">{cell}</td>
                 })}
                 <td className="py-1 px-1 w-6">
-                  {hoveredRow === i && (
-                    <button onClick={() => openNoteForRow(row)} title="Add private note" className="p-0.5 rounded text-gray-500 hover:text-yellow-400 hover:bg-gray-600">
-                      <StickyNote className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  {(() => {
+                    const repo = rowRepo(row)
+                    const refType = rowRefType(row, commands)
+                    const refNum = row.number !== undefined ? Number(row.number) : null
+                    const hasNote = repo != null && refNum != null && noteKeySet.has(`${repo}|${refType}|${refNum}`)
+                    return (hasNote || hoveredRow === i) ? (
+                      <button onClick={() => openNoteForRow(row)} title="Add private note" className={`p-0.5 rounded hover:bg-gray-600 ${hasNote ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}>
+                        <StickyNote className="w-3.5 h-3.5" />
+                      </button>
+                    ) : null
+                  })()}
                 </td>
               </tr>
             ))}
