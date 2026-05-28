@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { Trash2, Settings, GripHorizontal } from 'lucide-react'
+import { Trash2, Settings, GripHorizontal, Copy } from 'lucide-react'
 import type { Tile } from '../types'
 
 interface Props {
   tile: Tile
   onDelete: () => void
   onEdit: () => void
+  onCopy: () => void
   children: React.ReactNode
 }
 
-export default function TileWrapper({ tile, onDelete, onEdit, children }: Props) {
+export default function TileWrapper({ tile, onDelete, onEdit, onCopy, children }: Props) {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -27,10 +28,13 @@ export default function TileWrapper({ tile, onDelete, onEdit, children }: Props)
         </div>
         {hovered && (
           <div className="flex gap-1 shrink-0">
-            <button onClick={onEdit} className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200">
+            <button onClick={onCopy} title="Copy tile" className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200">
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={onEdit} title="Edit tile" className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200">
               <Settings className="w-3.5 h-3.5" />
             </button>
-            <button onClick={onDelete} className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-red-400">
+            <button onClick={onDelete} title="Delete tile" className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-red-400">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>

@@ -3,14 +3,14 @@ import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import GridLayout from 'react-grid-layout'
 import type { Layout } from 'react-grid-layout'
-import { Plus } from 'lucide-react'
+import { Plus, ClipboardPaste } from 'lucide-react'
 import { api } from '../api/client'
 import TileWrapper from '../components/TileWrapper'
 import GhQueryTile from '../components/tiles/GhQueryTile'
 import NoteTile from '../components/tiles/NoteTile'
-import NewTileDialog from '../components/dialogs/NewTileDialog'
+import NewTileDialog, { type NewTileInitialValues } from '../components/dialogs/NewTileDialog'
 import EditTileDialog from '../components/dialogs/EditTileDialog'
-import type { CreateTileInput, Tile } from '../types'
+import type { CreateTileInput, Tile, GhQueryConfig, NoteConfig } from '../types'
 
 export default function DashboardPage() {
   const { id } = useParams<{ id: string }>()
@@ -21,6 +21,8 @@ export default function DashboardPage() {
   const { data: tiles = [] } = useQuery({ queryKey: ['tiles', dashboardId], queryFn: () => api.tiles.list(dashboardId) })
 
   const [showNewTile, setShowNewTile] = useState(false)
+  const [newTileInitialValues, setNewTileInitialValues] = useState<NewTileInitialValues | undefined>(undefined)
+  const [copiedTile, setCopiedTile] = useState<Tile | null>(null)
   const [editingTile, setEditingTile] = useState<Tile | null>(null)
   const [renamingDashboard, setRenamingDashboard] = useState(false)
   const [renameValue, setRenameValue] = useState('')
@@ -50,10 +52,38 @@ export default function DashboardPage() {
     if (e.key === 'Escape') setRenamingDashboard(false)
   }
 
+  function getTilePasteValues(tile: Tile): NewTileInitialValues {
+    const config = JSON.parse(tile.config)
+    if (tile.tile_type === 'gh_query') {
+      const ghConfig = config as GhQueryConfig
+      const vars = ghConfig.variables ?? {}
+      return {
+        type: 'gh_query',
+        title: `${tile.title} (copy)`,
+        commands: ghConfig.commands ?? (ghConfig.command ? [ghConfig.command] : ['']),
+        variablesJson: Object.keys(vars).length > 0 ? JSON.stringify(vars, null, 2) : '',
+      }
+    } else {
+      const noteConfig = config as NoteConfig
+      return {
+        type: 'note',
+        title: `${tile.title} (copy)`,
+        noteId: String(noteConfig.note_id),
+      }
+    }
+  }
+
   async function handleAddTile(input: CreateTileInput) {
     await api.tiles.create(dashboardId, input)
     qc.invalidateQueries({ queryKey: ['tiles', dashboardId] })
     setShowNewTile(false)
+    setNewTileInitialValues(undefined)
+  }
+
+  function openPasteTile() {
+    if (!copiedTile) return
+    setNewTileInitialValues(getTilePasteValues(copiedTile))
+    setShowNewTile(true)
   }
 
   async function handleDeleteTile(tileId: number) {
@@ -106,12 +136,23 @@ export default function DashboardPage() {
             {dashboard?.name}
           </h1>
         )}
-        <button
-          onClick={() => setShowNewTile(true)}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 rounded text-white"
-        >
-          <Plus className="w-4 h-4" /> Add tile
-        </button>
+        <div className="flex items-center gap-2">
+          {copiedTile && (
+            <button
+              onClick={openPasteTile}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-white"
+              title={`Paste "${copiedTile.title}"`}
+            >
+              <ClipboardPaste className="w-4 h-4" /> Paste tile
+            </button>
+          )}
+          <button
+            onClick={() => { setNewTileInitialValues(undefined); setShowNewTile(true) }}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 rounded text-white"
+          >
+            <Plus className="w-4 h-4" /> Add tile
+          </button>
+        </div>
       </div>
 
       {tiles.length === 0 ? (
@@ -136,6 +177,7 @@ export default function DashboardPage() {
                   tile={tile}
                   onDelete={() => handleDeleteTile(tile.id)}
                   onEdit={() => setEditingTile(tile)}
+                  onCopy={() => setCopiedTile(tile)}
                 >
                   {tile.tile_type === 'gh_query' && <GhQueryTile config={config} tileId={tile.id} />}
                   {tile.tile_type === 'note' && <NoteTile config={config} />}
@@ -146,7 +188,13 @@ export default function DashboardPage() {
         </GridLayout>
       )}
 
-      {showNewTile && <NewTileDialog onConfirm={handleAddTile} onClose={() => setShowNewTile(false)} />}
+      {showNewTile && (
+        <NewTileDialog
+          onConfirm={handleAddTile}
+          onClose={() => { setShowNewTile(false); setNewTileInitialValues(undefined) }}
+          initialValues={newTileInitialValues}
+        />
+      )}
       {editingTile && <EditTileDialog tile={editingTile} onConfirm={handleEditTile} onClose={() => setEditingTile(null)} />}
     </div>
   )

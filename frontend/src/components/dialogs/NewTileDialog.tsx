@@ -2,17 +2,26 @@ import { useState } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
 import type { CreateTileInput } from '../../types'
 
+export interface NewTileInitialValues {
+  type: 'gh_query' | 'note'
+  title: string
+  commands?: string[]
+  variablesJson?: string
+  noteId?: string
+}
+
 interface Props {
   onConfirm: (input: CreateTileInput) => void
   onClose: () => void
+  initialValues?: NewTileInitialValues
 }
 
-export default function NewTileDialog({ onConfirm, onClose }: Props) {
-  const [type, setType] = useState<'gh_query' | 'note'>('gh_query')
-  const [title, setTitle] = useState('')
-  const [commands, setCommands] = useState([''])
-  const [noteId, setNoteId] = useState('')
-  const [variablesJson, setVariablesJson] = useState('')
+export default function NewTileDialog({ onConfirm, onClose, initialValues }: Props) {
+  const [type, setType] = useState<'gh_query' | 'note'>(initialValues?.type ?? 'gh_query')
+  const [title, setTitle] = useState(initialValues?.title ?? '')
+  const [commands, setCommands] = useState(initialValues?.commands ?? [''])
+  const [noteId, setNoteId] = useState(initialValues?.noteId ?? '')
+  const [variablesJson, setVariablesJson] = useState(initialValues?.variablesJson ?? '')
   const [jsonError, setJsonError] = useState<string | null>(null)
 
   function setCommand(i: number, val: string) {
@@ -49,7 +58,7 @@ export default function NewTileDialog({ onConfirm, onClose }: Props) {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 w-[560px] shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold">Add Tile</h2>
+          <h2 className="text-base font-semibold">{initialValues ? 'Paste Tile' : 'Add Tile'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
