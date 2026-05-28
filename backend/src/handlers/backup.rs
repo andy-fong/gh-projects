@@ -19,6 +19,8 @@ pub struct BackupTile {
     pub tile_type: String,
     pub config: Value,
     pub layout: Value,
+    #[serde(default)]
+    pub row_order: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -71,16 +73,18 @@ pub async fn export_backup(
     let mut backup_dashboards = Vec::new();
     for d in dashboards {
         let tiles = state.tiles.list_by_dashboard(d.id).await?;
-        let backup_tiles = tiles
-            .into_iter()
-            .map(|t| BackupTile {
+        let mut backup_tiles = Vec::new();
+        for t in tiles {
+            let row_order = state.row_orders.get(t.id).await.unwrap_or_default();
+            backup_tiles.push(BackupTile {
                 id: t.id,
                 title: t.title,
                 tile_type: t.tile_type,
                 config: serde_json::from_str(&t.config).unwrap_or(Value::Null),
                 layout: serde_json::from_str(&t.layout).unwrap_or(Value::Null),
-            })
-            .collect();
+                row_order,
+            });
+        }
         backup_dashboards.push(BackupDashboard {
             name: d.name,
             description: d.description,
@@ -141,6 +145,9 @@ pub async fn restore_backup(
                     },
                 )
                 .await?;
+            if !t.row_order.is_empty() {
+                state.row_orders.set(tile.id, t.row_order).await?;
+            }
             tile_ids.push(tile.id);
         }
         result.dashboards.push(RestoreDashboardResult { tile_ids });

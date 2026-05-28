@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS row_order (
+    tile_id INTEGER PRIMARY KEY REFERENCES tiles(id) ON DELETE CASCADE,
+    ordered_keys TEXT NOT NULL DEFAULT '[]'
+);

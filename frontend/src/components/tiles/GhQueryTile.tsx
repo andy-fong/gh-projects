@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronUp, ChevronDown, ChevronsUpDown, Columns, StickyNote, Filter, X, Search, GripVertical } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsUpDown, Columns, StickyNote, Filter, X, Search, GripVertical, ListOrdered } from 'lucide-react'
 import { api } from '../../api/client'
 import { extractDisplay, isDateTimeString, formatDateOnly } from '../../lib/fieldExtractors'
 import { useSettings } from '../../context/SettingsContext'
@@ -16,6 +16,7 @@ interface Props {
 }
 
 type SortDir = 'asc' | 'desc'
+type SortMode = 'column' | 'priority'
 type Filters = Record<string, string[]>
 
 function storageKey(tileId: number) { return `gh-tile-hidden-${tileId}` }
@@ -115,6 +116,42 @@ function FilterDropdown({ col, values, selected, anchor, onToggle, onSelectAll, 
   )
 }
 
+interface RowContextMenuProps {
+  x: number
+  y: number
+  onSendToTop: () => void
+  onSendToBottom: () => void
+  onClose: () => void
+}
+
+function RowContextMenu({ x, y, onSendToTop, onSendToBottom, onClose }: RowContextMenuProps) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [onClose])
+
+  return createPortal(
+    <div
+      ref={ref}
+      style={{ position: 'fixed', top: y, left: x, zIndex: 9999 }}
+      className="bg-gray-900 border border-gray-700 rounded shadow-xl py-1 min-w-36"
+    >
+      <button onClick={onSendToTop} className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+        Send to Top
+      </button>
+      <button onClick={onSendToBottom} className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+        Send to Bottom
+      </button>
+    </div>,
+    document.body
+  )
+}
+
 export default function GhQueryTile({ config, tileId }: Props) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -138,6 +175,9 @@ export default function GhQueryTile({ config, tileId }: Props) {
       return stored ? JSON.parse(stored) as string[] : []
     } catch { return [] }
   })
+  const [sortMode, setSortMode] = useState<SortMode>('column')
+  const [rowOrder, setRowOrder] = useState<string[]>([])
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; url: string } | null>(null)
   const colPickerRef = useRef<HTMLDivElement>(null)
   const dragItem = useRef<string | null>(null)
   const { globalExtractors } = useSettings()
@@ -176,6 +216,16 @@ export default function GhQueryTile({ config, tileId }: Props) {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  const { data: rowOrderData } = useQuery({
+    queryKey: ['row-order', tileId],
+    queryFn: () => api.rowOrder.get(tileId),
+    staleTime: Infinity,
+  })
+
+  useEffect(() => {
+    if (rowOrderData) setRowOrder(rowOrderData.order)
+  }, [rowOrderData])
 
   const queryResults = useQueries({
     queries: commands.map(cmd => ({
@@ -237,6 +287,15 @@ export default function GhQueryTile({ config, tileId }: Props) {
   )
 
   const sorted = useMemo(() => {
+    if (sortMode === 'priority') {
+      const urlToRow = new Map(raw.map(r => [r.url as string, r]))
+      const positioned = rowOrder
+        .map(url => urlToRow.get(url))
+        .filter((r): r is Record<string, unknown> => r !== undefined)
+      const positionedUrls = new Set(rowOrder)
+      const unpositioned = raw.filter(r => !positionedUrls.has(r.url as string))
+      return [...positioned, ...unpositioned]
+    }
     if (!sortKey) return raw
     return [...raw].sort((a, b) => {
       const av = extractDisplay(a[sortKey], extractors[sortKey])
@@ -244,7 +303,7 @@ export default function GhQueryTile({ config, tileId }: Props) {
       const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' })
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [raw, sortKey, sortDir, extractors])
+  }, [raw, sortKey, sortDir, extractors, sortMode, rowOrder])
 
   // Unique values per column for the filter dropdowns (computed from unfiltered data)
   const columnValues = useMemo(() => {
@@ -276,8 +335,30 @@ export default function GhQueryTile({ config, tileId }: Props) {
   if (raw.length === 0) return <div className="text-gray-500 text-sm">No results</div>
 
   function handleSort(key: string) {
+    setSortMode('column')
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
+  }
+
+  function togglePrioritySort() {
+    if (sortMode === 'priority') { setSortMode('column'); setSortKey(null) }
+    else setSortMode('priority')
+  }
+
+  async function sendToTop(url: string) {
+    const next = [url, ...rowOrder.filter(u => u !== url)]
+    setRowOrder(next)
+    setSortMode('priority')
+    await api.rowOrder.set(tileId, next)
+    qc.setQueryData(['row-order', tileId], { order: next })
+  }
+
+  async function sendToBottom(url: string) {
+    const next = [...rowOrder.filter(u => u !== url), url]
+    setRowOrder(next)
+    setSortMode('priority')
+    await api.rowOrder.set(tileId, next)
+    qc.setQueryData(['row-order', tileId], { order: next })
   }
 
   function toggleColumn(key: string) {
@@ -347,6 +428,12 @@ export default function GhQueryTile({ config, tileId }: Props) {
           Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
         </button>
         <button
+          onClick={togglePrioritySort}
+          className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded ${sortMode === 'priority' ? 'bg-gray-700 text-gray-200' : 'text-gray-500 hover:text-gray-200 hover:bg-gray-700'}`}
+        >
+          <ListOrdered className="w-3 h-3" /> Priority
+        </button>
+        <button
           onClick={() => setShowColPicker(v => !v)}
           className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded ${showColPicker ? 'bg-gray-700 text-gray-200' : 'text-gray-500 hover:text-gray-200 hover:bg-gray-700'}`}
         >
@@ -404,7 +491,7 @@ export default function GhQueryTile({ config, tileId }: Props) {
                       className="inline-flex items-center gap-1 cursor-pointer select-none hover:text-gray-200 capitalize"
                     >
                       {k}
-                      {sortKey === k
+                      {sortMode === 'column' && sortKey === k
                         ? sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                         : <ChevronsUpDown className="w-3 h-3 opacity-30" />}
                     </span>
@@ -438,6 +525,12 @@ export default function GhQueryTile({ config, tileId }: Props) {
                 className="border-b border-gray-700/50 hover:bg-gray-700/30"
                 onMouseEnter={() => setHoveredRow(i)}
                 onMouseLeave={() => setHoveredRow(null)}
+                onContextMenu={e => {
+                  const url = row['url'] as string | undefined
+                  if (!url) return
+                  e.preventDefault()
+                  setContextMenu({ x: e.clientX, y: e.clientY, url })
+                }}
               >
                 <td className="py-1 px-2 text-gray-600 text-right tabular-nums w-8 shrink-0">{i + 1}</td>
                 {keys.map(k => {
@@ -524,6 +617,15 @@ export default function GhQueryTile({ config, tileId }: Props) {
           number={detailItem.number}
           url={detailItem.url}
           onClose={() => setDetailItem(null)}
+        />
+      )}
+      {contextMenu && (
+        <RowContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onSendToTop={() => { sendToTop(contextMenu.url); setContextMenu(null) }}
+          onSendToBottom={() => { sendToBottom(contextMenu.url); setContextMenu(null) }}
+          onClose={() => setContextMenu(null)}
         />
       )}
     </div>

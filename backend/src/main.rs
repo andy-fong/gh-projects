@@ -19,6 +19,7 @@ use repositories::{
     dashboards::SqliteDashboardRepository,
     notes::SqliteNoteRepository,
     tiles::SqliteTileRepository,
+    row_order::SqliteRowOrderRepository,
 };
 use state::AppState;
 
@@ -38,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
         notes: Arc::new(SqliteNoteRepository::new(pool.clone())),
         dashboards: Arc::new(SqliteDashboardRepository::new(pool.clone())),
         tiles: Arc::new(SqliteTileRepository::new(pool.clone())),
+        row_orders: Arc::new(SqliteRowOrderRepository::new(pool.clone())),
         cache_dir: config.cache_dir.clone(),
         cache_ttl_secs: config.cache_ttl_secs,
     };
@@ -57,6 +59,8 @@ async fn main() -> anyhow::Result<()> {
         // Tiles
         .route("/api/dashboards/:dashboard_id/tiles", get(handlers::tiles::list_tiles).post(handlers::tiles::create_tile))
         .route("/api/dashboards/:dashboard_id/tiles/:tile_id", put(handlers::tiles::update_tile).delete(handlers::tiles::delete_tile))
+        // Row order
+        .route("/api/tiles/:tile_id/row-order", get(handlers::row_order::get_row_order).put(handlers::row_order::set_row_order))
         // GH CLI
         .route("/api/gh/execute", post(handlers::gh::execute_gh))
         // Cache
