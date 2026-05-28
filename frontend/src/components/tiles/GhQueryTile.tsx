@@ -44,6 +44,15 @@ function rowRepo(row: Record<string, unknown>): string | undefined {
   return undefined
 }
 
+function rowKey(row: Record<string, unknown>): string | undefined {
+  const num = row.number
+  if (num == null) return undefined
+  const repo = rowRepo(row)
+  if (!repo) return undefined
+  const name = repo.split('/').pop()
+  return `${name}#${num}`
+}
+
 interface FilterDropdownProps {
   col: string
   values: string[]
@@ -178,7 +187,7 @@ export default function GhQueryTile({ config, tileId }: Props) {
   })
   const [sortMode, setSortMode] = useState<SortMode>('column')
   const [rowOrder, setRowOrder] = useState<string[]>([])
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; url: string } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; key: string } | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
   const colPickerRef = useRef<HTMLDivElement>(null)
   const dragItem = useRef<string | null>(null)
@@ -291,12 +300,12 @@ export default function GhQueryTile({ config, tileId }: Props) {
 
   const sorted = useMemo(() => {
     if (sortMode === 'priority') {
-      const urlToRow = new Map(raw.map(r => [r.url as string, r]))
+      const keyToRow = new Map(raw.flatMap(r => { const k = rowKey(r); return k ? [[k, r]] : [] }))
       const positioned = rowOrder
-        .map(url => urlToRow.get(url))
+        .map(k => keyToRow.get(k))
         .filter((r): r is Record<string, unknown> => r !== undefined)
-      const positionedUrls = new Set(rowOrder)
-      const unpositioned = raw.filter(r => !positionedUrls.has(r.url as string))
+      const positionedKeys = new Set(rowOrder)
+      const unpositioned = raw.filter(r => { const k = rowKey(r); return !k || !positionedKeys.has(k) })
       return [...positioned, ...unpositioned]
     }
     if (!sortKey) return raw
@@ -364,16 +373,16 @@ export default function GhQueryTile({ config, tileId }: Props) {
     qc.setQueryData(['row-order', tileId], { order: next })
   }
 
-  async function reorderRows(fromUrl: string, toIdx: number) {
-    const displayUrls = rows.map(r => r.url as string).filter(Boolean)
-    const fromIdx = displayUrls.indexOf(fromUrl)
+  async function reorderRows(fromKey: string, toIdx: number) {
+    const displayKeys = rows.flatMap(r => { const k = rowKey(r); return k ? [k] : [] })
+    const fromIdx = displayKeys.indexOf(fromKey)
     if (fromIdx === -1) return
-    const newDisplayUrls = [...displayUrls]
-    newDisplayUrls.splice(fromIdx, 1)
-    newDisplayUrls.splice(toIdx, 0, fromUrl)
-    const displayUrlSet = new Set(displayUrls)
-    const nonDisplayed = rowOrder.filter(url => !displayUrlSet.has(url))
-    const next = [...newDisplayUrls, ...nonDisplayed]
+    const newDisplayKeys = [...displayKeys]
+    newDisplayKeys.splice(fromIdx, 1)
+    newDisplayKeys.splice(toIdx, 0, fromKey)
+    const displayKeySet = new Set(displayKeys)
+    const nonDisplayed = rowOrder.filter(k => !displayKeySet.has(k))
+    const next = [...newDisplayKeys, ...nonDisplayed]
     setRowOrder(next)
     setSortMode('priority')
     await api.rowOrder.set(tileId, next)
@@ -554,22 +563,22 @@ export default function GhQueryTile({ config, tileId }: Props) {
           </thead>
           <tbody>
             {rows.map((row, i) => {
-              const rowUrl = row['url'] as string | undefined
+              const rKey = rowKey(row)
               return (
               <tr
                 key={i}
-                draggable={!!rowUrl}
+                draggable={!!rKey}
                 className={`border-b border-gray-700/50 hover:bg-gray-700/30 ${dragOverIdx === i ? 'outline outline-1 outline-blue-500/50 bg-blue-500/5' : ''}`}
                 onMouseEnter={() => setHoveredRow(i)}
                 onMouseLeave={() => setHoveredRow(null)}
                 onContextMenu={e => {
-                  if (!rowUrl) return
+                  if (!rKey) return
                   e.preventDefault()
-                  setContextMenu({ x: e.clientX, y: e.clientY, url: rowUrl })
+                  setContextMenu({ x: e.clientX, y: e.clientY, key: rKey })
                 }}
                 onDragStart={e => {
-                  if (!rowUrl) return
-                  dragRow.current = rowUrl
+                  if (!rKey) return
+                  dragRow.current = rKey
                   e.dataTransfer.effectAllowed = 'move'
                 }}
                 onDragOver={e => {
@@ -581,15 +590,15 @@ export default function GhQueryTile({ config, tileId }: Props) {
                 onDrop={e => {
                   e.preventDefault()
                   setDragOverIdx(null)
-                  const fromUrl = dragRow.current
+                  const fromKey = dragRow.current
                   dragRow.current = null
-                  if (!fromUrl || fromUrl === rowUrl) return
-                  reorderRows(fromUrl, i)
+                  if (!fromKey || fromKey === rKey) return
+                  reorderRows(fromKey, i)
                 }}
                 onDragEnd={() => { dragRow.current = null; setDragOverIdx(null) }}
               >
                 <td className="py-1 px-2 text-gray-600 text-right tabular-nums w-8 shrink-0">
-                  {hoveredRow === i && rowUrl
+                  {hoveredRow === i && rKey
                     ? <GripVertical className="w-3.5 h-3.5 text-gray-500 cursor-grab ml-auto" />
                     : i + 1}
                 </td>
@@ -686,8 +695,8 @@ export default function GhQueryTile({ config, tileId }: Props) {
         <RowContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          onSendToTop={() => { sendToTop(contextMenu.url); setContextMenu(null) }}
-          onSendToBottom={() => { sendToBottom(contextMenu.url); setContextMenu(null) }}
+          onSendToTop={() => { sendToTop(contextMenu.key); setContextMenu(null) }}
+          onSendToBottom={() => { sendToBottom(contextMenu.key); setContextMenu(null) }}
           onClose={() => setContextMenu(null)}
         />
       )}
