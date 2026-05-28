@@ -8,7 +8,7 @@ import { useSettings } from '../../context/SettingsContext'
 import NoteDialog from '../dialogs/NoteDialog'
 import DetailPanel from '../DetailPanel'
 import Tooltip from '../Tooltip'
-import type { CreateNoteInput, GhQueryConfig } from '../../types'
+import type { CreateNoteInput, GhQueryConfig, Note } from '../../types'
 
 interface Props {
   config: GhQueryConfig
@@ -168,6 +168,7 @@ export default function GhQueryTile({ config, tileId }: Props) {
   const [filterAnchor, setFilterAnchor] = useState<DOMRect | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [noteInit, setNoteInit] = useState<Partial<CreateNoteInput> | null>(null)
+  const [noteEditing, setNoteEditing] = useState<Note | null>(null)
   const [detailItem, setDetailItem] = useState<{ repo: string; refType: 'issue' | 'pr'; number: number; url: string } | null>(null)
   const [colOrder, setColOrder] = useState<string[]>(() => {
     try {
@@ -240,13 +241,13 @@ export default function GhQueryTile({ config, tileId }: Props) {
   const errors = queryResults.filter(r => r.error).map(r => (r.error as Error).message)
 
   const { data: allNotes } = useQuery({ queryKey: ['notes'], queryFn: () => api.notes.list(), staleTime: 60_000 })
-  const noteKeySet = useMemo(() => {
-    const s = new Set<string>()
+  const noteKeyMap = useMemo(() => {
+    const m = new Map<string, Note>()
     for (const n of allNotes ?? []) {
       if (n.repo && n.ref_type && n.ref_number != null)
-        s.add(`${n.repo}|${n.ref_type}|${n.ref_number}`)
+        m.set(`${n.repo}|${n.ref_type}|${n.ref_number}`, n)
     }
-    return s
+    return m
   }, [allNotes])
 
   const raw = useMemo<Record<string, unknown>[]>(() => {
@@ -396,18 +397,33 @@ export default function GhQueryTile({ config, tileId }: Props) {
   function clearFilters() { setFilters({}) }
 
   function openNoteForRow(row: Record<string, unknown>) {
-    setNoteInit({
-      repo: rowRepo(row),
-      ref_type: rowRefType(row, commands),
-      ref_number: row.number !== undefined ? Number(row.number) : undefined,
-      title: row.title ? String(row.title) : '',
-    })
+    const repo = rowRepo(row)
+    const refType = rowRefType(row, commands)
+    const refNum = row.number !== undefined ? Number(row.number) : null
+    const existing = repo != null && refNum != null ? noteKeyMap.get(`${repo}|${refType}|${refNum}`) : undefined
+    if (existing) {
+      setNoteEditing(existing)
+    } else {
+      setNoteInit({
+        repo,
+        ref_type: refType,
+        ref_number: refNum ?? undefined,
+        title: row.title ? String(row.title) : '',
+      })
+    }
   }
 
   async function handleCreateNote(input: CreateNoteInput) {
     await api.notes.create(input)
     qc.invalidateQueries({ queryKey: ['notes'] })
     setNoteInit(null)
+  }
+
+  async function handleUpdateNote(input: CreateNoteInput) {
+    if (!noteEditing) return
+    await api.notes.update(noteEditing.id, input)
+    qc.invalidateQueries({ queryKey: ['notes'] })
+    setNoteEditing(null)
   }
 
   return (
@@ -575,7 +591,7 @@ export default function GhQueryTile({ config, tileId }: Props) {
                     const repo = rowRepo(row)
                     const refType = rowRefType(row, commands)
                     const refNum = row.number !== undefined ? Number(row.number) : null
-                    const hasNote = repo != null && refNum != null && noteKeySet.has(`${repo}|${refType}|${refNum}`)
+                    const hasNote = repo != null && refNum != null && noteKeyMap.has(`${repo}|${refType}|${refNum}`)
                     return (hasNote || hoveredRow === i) ? (
                       <button onClick={() => openNoteForRow(row)} title="Add private note" className={`p-0.5 rounded hover:bg-gray-600 ${hasNote ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}>
                         <StickyNote className="w-3.5 h-3.5" />
@@ -609,6 +625,9 @@ export default function GhQueryTile({ config, tileId }: Props) {
 
       {noteInit !== null && (
         <NoteDialog initialValues={noteInit} onConfirm={handleCreateNote} onClose={() => setNoteInit(null)} />
+      )}
+      {noteEditing !== null && (
+        <NoteDialog note={noteEditing} onConfirm={handleUpdateNote} onClose={() => setNoteEditing(null)} />
       )}
       {detailItem && (
         <DetailPanel
