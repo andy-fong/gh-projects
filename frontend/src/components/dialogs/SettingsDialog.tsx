@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useSettings } from '../../context/SettingsContext'
 import { DEFAULT_FIELD_EXTRACTORS } from '../../lib/fieldExtractors'
+import { api } from '../../api/client'
 
 interface Props {
   onClose: () => void
@@ -14,6 +15,11 @@ export default function SettingsDialog({ onClose }: Props) {
     JSON.stringify(settings.field_extractors, null, 2)
   )
   const [jsonError, setJsonError] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [restoreSuccess, setRestoreSuccess] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -25,6 +31,76 @@ export default function SettingsDialog({ onClose }: Props) {
       onClose()
     } catch (err) {
       setJsonError((err as Error).message)
+    }
+  }
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      const data = await api.backup.export()
+      // Enrich each tile with its localStorage column state
+      for (const dashboard of data.dashboards) {
+        for (const tile of dashboard.tiles) {
+          const hidden = localStorage.getItem(`gh-tile-hidden-${tile.id}`)
+          const order = localStorage.getItem(`gh-tile-col-order-${tile.id}`)
+          if (hidden !== null) (tile as Record<string, unknown>).hidden_cols = JSON.parse(hidden)
+          if (order !== null) (tile as Record<string, unknown>).col_order = JSON.parse(order)
+        }
+      }
+      const now = new Date()
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const filename = `gh_project_backup_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}.json`
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setRestoring(true)
+    setRestoreError(null)
+    setRestoreSuccess(false)
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text) as {
+        dashboards: { tiles: { hidden_cols?: string[]; col_order?: string[] }[] }[]
+        notes: unknown[]
+      }
+      const result = await api.backup.restore(data)
+
+      // Clear all stale tile localStorage keys
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('gh-tile-hidden-') || key.startsWith('gh-tile-col-order-')) {
+          localStorage.removeItem(key)
+        }
+      }
+
+      // Write localStorage for restored tiles using new IDs returned by the server
+      for (let di = 0; di < result.dashboards.length; di++) {
+        const tileIds = result.dashboards[di].tile_ids
+        const tiles = data.dashboards[di]?.tiles ?? []
+        for (let ti = 0; ti < tileIds.length; ti++) {
+          const newId = tileIds[ti]
+          const tile = tiles[ti]
+          if (tile?.hidden_cols) localStorage.setItem(`gh-tile-hidden-${newId}`, JSON.stringify(tile.hidden_cols))
+          if (tile?.col_order) localStorage.setItem(`gh-tile-col-order-${newId}`, JSON.stringify(tile.col_order))
+        }
+      }
+
+      setRestoreSuccess(true)
+    } catch (err) {
+      setRestoreError((err as Error).message)
+    } finally {
+      setRestoring(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -62,6 +138,33 @@ export default function SettingsDialog({ onClose }: Props) {
             <p className="text-xs text-gray-600 mt-1">
               Per-tile overrides in the tile edit dialog take precedence over these.
             </p>
+          </div>
+
+          <div className="border-t border-gray-700 pt-4">
+            <p className="text-xs text-gray-400 mb-3">Backup &amp; Restore</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={exporting}
+                className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded text-white"
+              >
+                {exporting ? 'Exporting…' : 'Export backup'}
+              </button>
+              <label className={`px-3 py-1.5 text-sm rounded text-white cursor-pointer ${restoring ? 'bg-gray-700 opacity-50' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                {restoring ? 'Restoring…' : 'Restore backup'}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  disabled={restoring}
+                  onChange={handleRestoreFile}
+                />
+              </label>
+            </div>
+            {restoreError && <p className="text-xs text-red-400 mt-2">{restoreError}</p>}
+            {restoreSuccess && <p className="text-xs text-green-400 mt-2">Restore successful — reload the page to see your data.</p>}
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

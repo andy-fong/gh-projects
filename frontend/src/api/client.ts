@@ -47,4 +47,8 @@ export const api = {
     invalidate: () => req<{ invalidated_at: number }>('/cache/invalidate', { method: 'POST' }),
     status: () => req<{ cache_dir: string; ttl_secs: number; invalidated_at: number | null }>('/cache/status'),
   },
+  backup: {
+    export: () => req<{ dashboards: { id: number; name: string; description: string; tiles: { id: number; title: string; tile_type: string; config: unknown; layout: unknown }[] }[]; notes: unknown[]; version: number; exported_at: string }>('/backup'),
+    restore: (data: unknown) => req<{ dashboards: { tile_ids: number[] }[] }>('/restore', { method: 'POST', body: JSON.stringify(data) }),
+  },
 }

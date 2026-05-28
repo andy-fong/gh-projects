@@ -62,6 +62,9 @@ async fn main() -> anyhow::Result<()> {
         // Cache
         .route("/api/cache/invalidate", post(handlers::gh::invalidate_cache))
         .route("/api/cache/status", get(handlers::gh::cache_status))
+        // Backup / Restore
+        .route("/api/backup", get(handlers::backup::export_backup))
+        .route("/api/restore", post(handlers::backup::restore_backup))
         .layer(cors)
         .with_state(state);
 

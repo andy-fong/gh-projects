@@ -9,6 +9,7 @@ pub trait NoteRepository: Send + Sync {
     async fn list(&self, filter: NoteFilter) -> Result<Vec<Note>, AppError>;
     async fn update(&self, id: i64, input: UpdateNoteInput) -> Result<Option<Note>, AppError>;
     async fn delete(&self, id: i64) -> Result<bool, AppError>;
+    async fn delete_all(&self) -> Result<(), AppError>;
 }
 
 pub struct SqliteNoteRepository {
@@ -117,5 +118,10 @@ impl NoteRepository for SqliteNoteRepository {
             .execute(&self.pool)
             .await?;
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn delete_all(&self) -> Result<(), AppError> {
+        sqlx::query("DELETE FROM notes").execute(&self.pool).await?;
+        Ok(())
     }
 }

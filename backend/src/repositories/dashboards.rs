@@ -9,6 +9,7 @@ pub trait DashboardRepository: Send + Sync {
     async fn list(&self) -> Result<Vec<Dashboard>, AppError>;
     async fn update(&self, id: i64, input: UpdateDashboardInput) -> Result<Option<Dashboard>, AppError>;
     async fn delete(&self, id: i64) -> Result<bool, AppError>;
+    async fn delete_all(&self) -> Result<(), AppError>;
 }
 
 pub struct SqliteDashboardRepository {
@@ -69,5 +70,10 @@ impl DashboardRepository for SqliteDashboardRepository {
             .execute(&self.pool)
             .await?
             .rows_affected() > 0)
+    }
+
+    async fn delete_all(&self) -> Result<(), AppError> {
+        sqlx::query("DELETE FROM dashboards").execute(&self.pool).await?;
+        Ok(())
     }
 }
