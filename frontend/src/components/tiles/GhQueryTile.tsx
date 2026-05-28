@@ -179,8 +179,10 @@ export default function GhQueryTile({ config, tileId }: Props) {
   const [sortMode, setSortMode] = useState<SortMode>('column')
   const [rowOrder, setRowOrder] = useState<string[]>([])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; url: string } | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
   const colPickerRef = useRef<HTMLDivElement>(null)
   const dragItem = useRef<string | null>(null)
+  const dragRow = useRef<string | null>(null)
   const { globalExtractors } = useSettings()
   const qc = useQueryClient()
 
@@ -362,6 +364,22 @@ export default function GhQueryTile({ config, tileId }: Props) {
     qc.setQueryData(['row-order', tileId], { order: next })
   }
 
+  async function reorderRows(fromUrl: string, toIdx: number) {
+    const displayUrls = rows.map(r => r.url as string).filter(Boolean)
+    const fromIdx = displayUrls.indexOf(fromUrl)
+    if (fromIdx === -1) return
+    const newDisplayUrls = [...displayUrls]
+    newDisplayUrls.splice(fromIdx, 1)
+    newDisplayUrls.splice(toIdx, 0, fromUrl)
+    const displayUrlSet = new Set(displayUrls)
+    const nonDisplayed = rowOrder.filter(url => !displayUrlSet.has(url))
+    const next = [...newDisplayUrls, ...nonDisplayed]
+    setRowOrder(next)
+    setSortMode('priority')
+    await api.rowOrder.set(tileId, next)
+    qc.setQueryData(['row-order', tileId], { order: next })
+  }
+
   function toggleColumn(key: string) {
     setHiddenCols(prev => {
       const next = new Set(prev)
@@ -535,20 +553,46 @@ export default function GhQueryTile({ config, tileId }: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {rows.map((row, i) => {
+              const rowUrl = row['url'] as string | undefined
+              return (
               <tr
                 key={i}
-                className="border-b border-gray-700/50 hover:bg-gray-700/30"
+                draggable={!!rowUrl}
+                className={`border-b border-gray-700/50 hover:bg-gray-700/30 ${dragOverIdx === i ? 'outline outline-1 outline-blue-500/50 bg-blue-500/5' : ''}`}
                 onMouseEnter={() => setHoveredRow(i)}
                 onMouseLeave={() => setHoveredRow(null)}
                 onContextMenu={e => {
-                  const url = row['url'] as string | undefined
-                  if (!url) return
+                  if (!rowUrl) return
                   e.preventDefault()
-                  setContextMenu({ x: e.clientX, y: e.clientY, url })
+                  setContextMenu({ x: e.clientX, y: e.clientY, url: rowUrl })
                 }}
+                onDragStart={e => {
+                  if (!rowUrl) return
+                  dragRow.current = rowUrl
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragOver={e => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  setDragOverIdx(i)
+                }}
+                onDragLeave={() => setDragOverIdx(null)}
+                onDrop={e => {
+                  e.preventDefault()
+                  setDragOverIdx(null)
+                  const fromUrl = dragRow.current
+                  dragRow.current = null
+                  if (!fromUrl || fromUrl === rowUrl) return
+                  reorderRows(fromUrl, i)
+                }}
+                onDragEnd={() => { dragRow.current = null; setDragOverIdx(null) }}
               >
-                <td className="py-1 px-2 text-gray-600 text-right tabular-nums w-8 shrink-0">{i + 1}</td>
+                <td className="py-1 px-2 text-gray-600 text-right tabular-nums w-8 shrink-0">
+                  {hoveredRow === i && rowUrl
+                    ? <GripVertical className="w-3.5 h-3.5 text-gray-500 cursor-grab ml-auto" />
+                    : i + 1}
+                </td>
                 {keys.map(k => {
                   const val = row[k]
                   const url = row['url'] as string | undefined
@@ -600,7 +644,7 @@ export default function GhQueryTile({ config, tileId }: Props) {
                   })()}
                 </td>
               </tr>
-            ))}
+            )})}
             {rows.length === 0 && (
               <tr>
                 <td colSpan={keys.length + 2} className="py-6 text-center text-gray-500">No rows match the current filters</td>
