@@ -23,7 +23,7 @@ function storageKey(tileId: number) { return `gh-tile-hidden-${tileId}` }
 function orderStorageKey(tileId: number) { return `gh-tile-col-order-${tileId}` }
 
 function parseRepoFromCommand(cmd: string): string | undefined {
-  return cmd.match(/--repo\s+(\S+)/)?.[1]
+  return cmd.match(/(?:--repo|-R)\s+(\S+)/)?.[1]
 }
 
 function rowRefType(row: Record<string, unknown>, commands: string[]): 'issue' | 'pr' {
