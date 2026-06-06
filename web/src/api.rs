@@ -1,0 +1,234 @@
+//! Async HTTP client for the backend REST API. Mirrors `frontend/src/api/client.ts`.
+//! Served same-origin, so the base path is just `/api`.
+
+use gloo_net::http::{Request, Response};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
+use crate::types::*;
+
+/// Parse a response, turning non-2xx into the backend's `{ "error": ... }`
+/// message (falling back to status text / raw body).
+async fn parse<T: DeserializeOwned>(resp: Response) -> Result<T, String> {
+    if !resp.ok() {
+        return Err(error_message(resp).await);
+    }
+    resp.json::<T>().await.map_err(|e| e.to_string())
+}
+
+async fn error_message(resp: Response) -> String {
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
+        .unwrap_or_else(|| {
+            if text.is_empty() {
+                format!("HTTP {status}")
+            } else {
+                text
+            }
+        })
+}
+
+async fn send_get<T: DeserializeOwned>(path: &str) -> Result<T, String> {
+    let resp = Request::get(path).send().await.map_err(|e| e.to_string())?;
+    parse(resp).await
+}
+
+async fn send_json<B: Serialize, T: DeserializeOwned>(
+    method: &str,
+    path: &str,
+    body: &B,
+) -> Result<T, String> {
+    let builder = match method {
+        "POST" => Request::post(path),
+        "PUT" => Request::put(path),
+        _ => Request::post(path),
+    };
+    let resp = builder
+        .json(body)
+        .map_err(|e| e.to_string())?
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    parse(resp).await
+}
+
+async fn send_delete(path: &str) -> Result<(), String> {
+    let resp = Request::delete(path)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if resp.ok() {
+        Ok(())
+    } else {
+        Err(error_message(resp).await)
+    }
+}
+
+fn enc(s: &str) -> String {
+    js_sys::encode_uri_component(s).into()
+}
+
+// ---- Notes ----
+
+pub mod notes {
+    use super::*;
+
+    #[derive(Default)]
+    pub struct Filter {
+        pub repo: Option<String>,
+        pub ref_type: Option<String>,
+        pub ref_number: Option<i64>,
+    }
+
+    pub async fn list(filter: Filter) -> Result<Vec<Note>, String> {
+        let mut qs = Vec::new();
+        if let Some(r) = &filter.repo {
+            qs.push(format!("repo={}", enc(r)));
+        }
+        if let Some(t) = &filter.ref_type {
+            qs.push(format!("ref_type={}", enc(t)));
+        }
+        if let Some(n) = filter.ref_number {
+            qs.push(format!("ref_number={n}"));
+        }
+        let path = if qs.is_empty() {
+            "/api/notes".to_string()
+        } else {
+            format!("/api/notes?{}", qs.join("&"))
+        };
+        send_get(&path).await
+    }
+
+    pub async fn get(id: i64) -> Result<Note, String> {
+        send_get(&format!("/api/notes/{id}")).await
+    }
+
+    pub async fn create(input: &CreateNoteInput) -> Result<Note, String> {
+        send_json("POST", "/api/notes", input).await
+    }
+
+    pub async fn update(id: i64, input: &CreateNoteInput) -> Result<Note, String> {
+        send_json("PUT", &format!("/api/notes/{id}"), input).await
+    }
+
+    pub async fn delete(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/notes/{id}")).await
+    }
+}
+
+// ---- Dashboards ----
+
+pub mod dashboards {
+    use super::*;
+
+    pub async fn list() -> Result<Vec<Dashboard>, String> {
+        send_get("/api/dashboards").await
+    }
+
+    pub async fn get(id: i64) -> Result<Dashboard, String> {
+        send_get(&format!("/api/dashboards/{id}")).await
+    }
+
+    pub async fn create(input: &CreateDashboardInput) -> Result<Dashboard, String> {
+        send_json("POST", "/api/dashboards", input).await
+    }
+
+    pub async fn update(id: i64, input: &UpdateDashboardInput) -> Result<Dashboard, String> {
+        send_json("PUT", &format!("/api/dashboards/{id}"), input).await
+    }
+
+    #[allow(dead_code)]
+    pub async fn delete(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/dashboards/{id}")).await
+    }
+}
+
+// ---- Tiles ----
+
+pub mod tiles {
+    use super::*;
+
+    pub async fn list(dashboard_id: i64) -> Result<Vec<Tile>, String> {
+        send_get(&format!("/api/dashboards/{dashboard_id}/tiles")).await
+    }
+
+    pub async fn create(dashboard_id: i64, input: &CreateTileInput) -> Result<Tile, String> {
+        send_json("POST", &format!("/api/dashboards/{dashboard_id}/tiles"), input).await
+    }
+
+    pub async fn update(
+        dashboard_id: i64,
+        tile_id: i64,
+        input: &UpdateTileInput,
+    ) -> Result<Tile, String> {
+        send_json(
+            "PUT",
+            &format!("/api/dashboards/{dashboard_id}/tiles/{tile_id}"),
+            input,
+        )
+        .await
+    }
+
+    pub async fn delete(dashboard_id: i64, tile_id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/dashboards/{dashboard_id}/tiles/{tile_id}")).await
+    }
+}
+
+// ---- GH CLI ----
+
+pub mod gh {
+    use super::*;
+    use serde_json::json;
+
+    pub async fn execute(command: &str) -> Result<GhExecuteResponse, String> {
+        send_json("POST", "/api/gh/execute", &json!({ "command": command })).await
+    }
+}
+
+// ---- Cache ----
+
+pub mod cache {
+    use super::*;
+    use serde_json::Value;
+
+    pub async fn invalidate() -> Result<Value, String> {
+        send_json("POST", "/api/cache/invalidate", &serde_json::json!({})).await
+    }
+}
+
+// ---- Backup / Restore ----
+
+pub mod backup {
+    use super::*;
+    use serde_json::Value;
+
+    pub async fn export() -> Result<Value, String> {
+        send_get("/api/backup").await
+    }
+
+    pub async fn restore(data: &Value) -> Result<Value, String> {
+        send_json("POST", "/api/restore", data).await
+    }
+}
+
+// ---- Row order ----
+
+pub mod row_order {
+    use super::*;
+
+    pub async fn get(tile_id: i64) -> Result<RowOrderResponse, String> {
+        send_get(&format!("/api/tiles/{tile_id}/row-order")).await
+    }
+
+    pub async fn set(tile_id: i64, order: Vec<String>) -> Result<RowOrderResponse, String> {
+        send_json(
+            "PUT",
+            &format!("/api/tiles/{tile_id}/row-order"),
+            &serde_json::json!({ "order": order }),
+        )
+        .await
+    }
+}

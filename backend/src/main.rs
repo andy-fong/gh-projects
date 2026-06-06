@@ -12,6 +12,7 @@ use axum::{
     Router,
 };
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use config::Config;
@@ -69,8 +70,28 @@ async fn main() -> anyhow::Result<()> {
         // Backup / Restore
         .route("/api/backup", get(handlers::backup::export_backup))
         .route("/api/restore", post(handlers::backup::restore_backup))
-        .layer(cors)
         .with_state(state);
+
+    // Serve the compiled Dioxus WASM frontend (built with `dx build --release
+    // -p gh-projects-web`). Any request that doesn't match an /api route falls
+    // through to the static bundle; unknown paths serve index.html so the
+    // client-side router can handle them (SPA fallback). Override the location
+    // with STATIC_DIR. If the bundle isn't built yet, the API still runs.
+    let static_dir = std::env::var("STATIC_DIR")
+        .unwrap_or_else(|_| "target/dx/gh-projects-web/release/web/public".to_string());
+    let app = if std::path::Path::new(&static_dir).join("index.html").exists() {
+        let index = format!("{static_dir}/index.html");
+        let serve = ServeDir::new(&static_dir).not_found_service(ServeFile::new(index));
+        app.fallback_service(serve)
+    } else {
+        tracing::warn!(
+            "Frontend bundle not found at {static_dir} — serving API only. \
+             Build it with `dx build --release -p gh-projects-web` (or set STATIC_DIR)."
+        );
+        app
+    };
+
+    let app = app.layer(cors);
 
     let addr = format!("0.0.0.0:{}", config.port);
     tracing::info!("Listening on {addr}");

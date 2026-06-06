@@ -1,0 +1,11 @@
+[application]
+name = "gh-projects-web"
+
+[web.app]
+title = "GH Projects"
+
+# For `dx serve` (dev with hot reload): proxy API calls to the running backend
+# (`cargo run -p gh-projects-backend`, default port 3001), mirroring the old
+# Vite proxy. In production the backend serves the built bundle directly.
+[[web.proxy]]
+backend = "http://localhost:3001/api/"

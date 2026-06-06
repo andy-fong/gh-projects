@@ -1,0 +1,7 @@
+pub mod common;
+pub mod detail_panel;
+pub mod dialogs;
+pub mod gh_query_tile;
+pub mod note_tile;
+pub mod sidebar;
+pub mod tile_wrapper;

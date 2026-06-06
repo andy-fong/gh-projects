@@ -1,31 +1,61 @@
 # GH Projects
 
-A custom GitHub dashboard — Grafana-style drag/resize tiles where each tile runs a `gh` CLI command to fetch live data, plus private notes tied to GitHub issues and PRs stored locally in SQLite.
+A custom GitHub dashboard — tiles that each run a `gh` CLI command to fetch live data, plus private notes tied to GitHub issues and PRs stored locally in SQLite.
+
+**Single Rust app, no npm.** The frontend is built with [Dioxus](https://dioxuslabs.com) and compiles to WebAssembly; the Axum backend serves the compiled bundle and the REST API from one binary on one port.
 
 ## Features
 
-- **Dashboards** — create multiple named dashboards, each with an independent tile grid
-- **Drag & resize tiles** — powered by react-grid-layout; layouts are persisted to the database
-- **GH Query tiles** — each tile runs any `gh` CLI command and displays the JSON result as a table
+- **Dashboards** — create multiple named dashboards, each with its own tile grid
+- **GH Query tiles** — each tile runs any `gh` CLI command and displays the JSON result as a sortable, filterable table
 - **Note tiles** — embed a private note directly on a dashboard
 - **Notes page** — full CRUD for private Markdown notes, optionally linked to a GitHub repo / issue / PR; one-click link to open the issue or PR on GitHub
+
+> Tile layout is currently a simple responsive grid. Free drag/resize positioning is planned (the backend already persists per-tile `{x,y,w,h}` layout).
 
 ## Prerequisites
 
 - Rust toolchain (`cargo`)
-- Node.js 18+
+- The `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
+- The Dioxus CLI (`dx`): `cargo binstall dioxus-cli` (or `cargo install dioxus-cli`)
 - `gh` CLI authenticated (`gh auth login`)
 
 ## Running
 
-### Backend
+### 1. Build the frontend (WASM)
 
 ```bash
-cd /path/to/gh-projects
+dx build --release -p gh-projects-web
+```
+
+This compiles the Dioxus app to `target/dx/gh-projects-web/release/web/public/`.
+(On some macOS setups `wasm-opt` aborts; `dx` falls back to an unoptimized but
+fully working bundle — that's fine.)
+
+### 2. Run the backend (serves the API **and** the frontend)
+
+```bash
 cargo run -p gh-projects-backend
 ```
 
-The server starts on **http://localhost:3001**. The SQLite database file `gh-projects.db` is created automatically in the directory where you run the command.
+The server starts on **http://localhost:3001** and serves the built frontend at
+`/` plus the REST API under `/api`. Open <http://localhost:3001>. The SQLite
+database file `gh-projects.db` is created automatically in the working
+directory. If the frontend bundle hasn't been built yet, the backend still runs
+the API and logs a warning; set `STATIC_DIR` to serve the bundle from a custom
+location.
+
+### Frontend dev mode (hot reload)
+
+For iterating on the UI, run the backend (step 2) and, in another terminal:
+
+```bash
+dx serve -p gh-projects-web
+```
+
+This serves the app on its own port with hot reload and proxies `/api` to the
+backend on :3001 (configured in `web/Dioxus.toml`), mirroring the old Vite dev
+server.
 
 Override defaults with environment variables:
 
@@ -46,15 +76,9 @@ Example — store the cache in `/tmp` and keep results for 10 minutes:
 CACHE_DIR=/tmp/gh-cache CACHE_TTL_SECS=600 cargo run -p gh-projects-backend
 ```
 
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The dev server starts on **http://localhost:5173** and proxies `/api` requests to the backend.
+| Variable | Default | Description |
+|---|---|---|
+| `STATIC_DIR` | `target/dx/gh-projects-web/release/web/public` | Directory of the built frontend bundle to serve |
 
 ## Adding a GH Query tile
 
@@ -143,8 +167,8 @@ You can embed a note in a dashboard as a **Note tile** — useful for pinning co
 
 ```
 gh-projects/
-├── Cargo.toml              # workspace
-├── backend/                # Rust + Axum + sqlx
+├── Cargo.toml              # workspace (members: backend, web)
+├── backend/                # Rust + Axum + sqlx; also serves the WASM bundle
 │   ├── migrations/         # SQL migrations (run automatically on startup)
 │   └── src/
 │       ├── main.rs
@@ -152,12 +176,15 @@ gh-projects/
 │       ├── models/         # Serde structs
 │       ├── repositories/   # DB access (trait + SQLite impl)
 │       └── state.rs        # Shared app state
-└── frontend/               # React + Vite + Tailwind
+└── web/                    # Rust + Dioxus (compiles to WebAssembly)
+    ├── Dioxus.toml         # app config + dev proxy
+    ├── assets/main.css     # plain CSS (no Tailwind/npm)
     └── src/
-        ├── api/            # Typed API client
-        ├── components/     # Sidebar, TileWrapper, tiles, dialogs
-        ├── pages/          # DashboardPage, NotesPage
-        └── types/          # TypeScript interfaces
+        ├── api.rs          # async REST client (gloo-net)
+        ├── types.rs        # serde types mirroring the API
+        ├── state.rs        # shared signals (cache versions + settings)
+        ├── components/     # Sidebar, tiles, dialogs, detail panel
+        └── pages/          # Dashboard, Notes, Home
 ```
 
 ## API overview
