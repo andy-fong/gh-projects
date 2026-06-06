@@ -80,6 +80,7 @@ pub struct WarRoomItem {
     pub stage: String,
     pub checklist: String, // JSON [{text, done}]
     pub depends_on: Option<i64>,
+    pub source_item_id: Option<i64>, // set => this row mirrors another item
     pub position: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -94,6 +95,7 @@ pub struct CreateItemInput {
     pub stage: Option<String>,
     pub checklist: Option<Vec<ChecklistItem>>,
     pub depends_on: Option<i64>,
+    pub source_item_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]

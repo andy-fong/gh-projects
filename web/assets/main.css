@@ -322,6 +322,12 @@ input, textarea, select { font-family: inherit; }
 
 .wr-item { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); }
 .wr-item:last-child { border-bottom: none; }
+.wr-item-linked { border-left: 2px solid var(--accent); background: rgba(47,129,247,.04); }
+.wr-link-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11px; color: var(--accent); padding: 1px 6px;
+  border: 1px solid var(--accent); border-radius: 999px;
+}
 .wr-item-main { display: flex; align-items: center; gap: 8px; }
 .wr-item-label { font-weight: 500; }
 .wr-item-note { color: var(--muted); font-size: 12px; margin: 4px 0 0 4px; white-space: pre-wrap; }

@@ -32,6 +32,8 @@ web-sys = { version = "0.3", features = [
     "BlobPropertyBag",
     "Url",
     "HtmlAnchorElement",
+    "Navigator",
+    "Clipboard",
 ] }
 
 [profile.release]

@@ -155,6 +155,8 @@ pub struct WarRoomItem {
     pub stage: String,
     pub checklist: String, // JSON array string
     pub depends_on: Option<i64>,
+    #[serde(default)]
+    pub source_item_id: Option<i64>,
     pub position: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -240,6 +242,8 @@ pub struct CreateItemInput {
     pub checklist: Option<Vec<ChecklistItem>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_on: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_item_id: Option<i64>,
 }
 
 /// Item update is replace-style: send the full item (nullable ref/depends

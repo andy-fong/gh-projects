@@ -190,8 +190,8 @@ impl WarRoomRepository for SqliteWarRoomRepository {
     async fn create_item(&self, group_id: i64, input: CreateItemInput) -> Result<WarRoomItem, AppError> {
         let checklist = serde_json::to_string(&input.checklist.unwrap_or_default())?;
         Ok(sqlx::query_as::<_, WarRoomItem>(
-            "INSERT INTO war_room_items (group_id, label, ref_type, ref_number, note, stage, checklist, depends_on, position)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position) + 1, 0) FROM war_room_items WHERE group_id = ?))
+            "INSERT INTO war_room_items (group_id, label, ref_type, ref_number, note, stage, checklist, depends_on, source_item_id, position)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position) + 1, 0) FROM war_room_items WHERE group_id = ?))
              RETURNING *",
         )
         .bind(group_id)
@@ -202,6 +202,7 @@ impl WarRoomRepository for SqliteWarRoomRepository {
         .bind(input.stage.unwrap_or_else(|| "todo".to_string()))
         .bind(&checklist)
         .bind(input.depends_on)
+        .bind(input.source_item_id)
         .bind(group_id)
         .fetch_one(&self.pool)
         .await?)

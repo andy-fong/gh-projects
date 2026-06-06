@@ -76,6 +76,7 @@ pub fn WarRoomItemDialog(
             stage: Some(stage.read().clone()),
             checklist: Some(checklist.read().clone()),
             depends_on: dep.parse::<i64>().ok(),
+            source_item_id: None,
         };
         on_confirm.call(input);
     };

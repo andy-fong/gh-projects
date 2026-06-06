@@ -1,8 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
-    LdChevronDown, LdChevronUp, LdExternalLink, LdLink, LdPencil, LdPlus, LdTrash2,
+    LdChevronDown, LdChevronUp, LdClipboardPaste, LdCopy, LdExternalLink, LdLink, LdPencil, LdPlus,
+    LdTrash2,
 };
 use dioxus_free_icons::Icon;
 
@@ -10,12 +11,13 @@ use crate::api;
 use crate::components::common::Prose;
 use crate::components::dialogs::war_room_group_dialog::WarRoomGroupDialog;
 use crate::components::dialogs::war_room_item_dialog::WarRoomItemDialog;
+use crate::components::dialogs::war_room_link_dialog::WarRoomLinkDialog;
 use crate::state::{use_app_state, AppState};
 use crate::types::{
     CreateGroupInput, CreateItemInput, GroupWithItems, Repo, UpdateGroupInput, UpdateItemInput,
     UpdateWarRoomInput, WarRoomGroup, WarRoomItem,
 };
-use crate::war_room::{github_url, stage_badge_class, stage_label};
+use crate::war_room::{group_rollup_stage, github_url, stage_badge_class, stage_label};
 use crate::Route;
 
 // ---- pure mappers (replace-style: carry the full record) ----
@@ -30,6 +32,20 @@ fn item_to_update(item: &WarRoomItem, position: Option<i64>) -> UpdateItemInput 
         checklist: Some(item.checklist_items()),
         depends_on: item.depends_on,
         position,
+    }
+}
+
+/// Snapshot an item into a create payload — an independent copy (not a mirror).
+fn item_to_create(item: &WarRoomItem) -> CreateItemInput {
+    CreateItemInput {
+        label: item.label.clone(),
+        ref_type: item.ref_type.clone(),
+        ref_number: item.ref_number,
+        note: Some(item.note.clone()),
+        stage: Some(item.stage.clone()),
+        checklist: Some(item.checklist_items()),
+        depends_on: item.depends_on,
+        source_item_id: None,
     }
 }
 
@@ -72,8 +88,13 @@ struct WarCtx {
     group_dialog: Signal<Option<Option<WarRoomGroup>>>,
     // Some((group_id, maybe_item)) = add/edit item in a group.
     item_dialog: Signal<Option<(i64, Option<WarRoomItem>)>>,
-    // id -> label, for rendering "depends on" badges.
-    dep_labels: Signal<HashMap<i64, String>>,
+    // Some(group_id) = open the "link an item" picker for that group.
+    link_dialog: Signal<Option<i64>>,
+    // An item placed on the clipboard, pasteable into any group as a copy.
+    copied_item: Signal<Option<WarRoomItem>>,
+    // id -> (item, owning group's repo, owning group's name); lets a mirror row
+    // render its source's live data and resolves "depends on" badges.
+    items_by_id: Signal<HashMap<i64, (WarRoomItem, Option<String>, String)>>,
 }
 
 #[component]
@@ -98,7 +119,10 @@ pub fn WarRoomPage(id: i64) -> Element {
     let nav = use_navigator();
     let group_dialog = use_signal(|| None::<Option<WarRoomGroup>>);
     let item_dialog = use_signal(|| None::<(i64, Option<WarRoomItem>)>);
-    let mut dep_labels = use_signal(HashMap::<i64, String>::new);
+    let link_dialog = use_signal(|| None::<i64>);
+    let copied_item = use_signal(|| None::<WarRoomItem>);
+    let mut items_by_id =
+        use_signal(HashMap::<i64, (WarRoomItem, Option<String>, String)>::new);
     let mut renaming = use_signal(|| false);
     let mut rename_value = use_signal(String::new);
     let mut confirm_delete = use_signal(|| false);
@@ -109,7 +133,9 @@ pub fn WarRoomPage(id: i64) -> Element {
         state,
         group_dialog,
         item_dialog,
-        dep_labels,
+        link_dialog,
+        copied_item,
+        items_by_id,
     });
 
     let repos: Vec<Repo> = match repos_res.read().as_ref() {
@@ -133,21 +159,34 @@ pub fn WarRoomPage(id: i64) -> Element {
     let room_name = room.name.clone();
     let room_id = room.id;
 
-    // Keep the id -> label map current for "depends on" rendering.
+    // Keep the id -> (item, group repo, group name) map current so mirror rows
+    // can resolve and render their source's live data, and "depends on" badges
+    // can show the dependency's title + status.
     {
-        let map: HashMap<i64, String> = groups
+        let map: HashMap<i64, (WarRoomItem, Option<String>, String)> = groups
             .iter()
-            .flat_map(|g| g.items.iter().map(|i| (i.id, i.label.clone())))
+            .flat_map(|g| {
+                g.items
+                    .iter()
+                    .map(|i| (i.id, (i.clone(), g.group.repo.clone(), g.group.name.clone())))
+            })
             .collect();
-        if *dep_labels.peek() != map {
-            dep_labels.set(map);
+        if *items_by_id.peek() != map {
+            items_by_id.set(map);
         }
     }
 
-    // sibling options (id, label) for the item dialog's depends-on select.
+    // depends-on options for the item dialog, shown as "Group / Title".
+    // Mirror rows are excluded so each real item appears once.
     let siblings: Vec<(i64, String)> = groups
         .iter()
-        .flat_map(|g| g.items.iter().map(|i| (i.id, i.label.clone())))
+        .flat_map(|g| {
+            let gname = g.group.name.clone();
+            g.items
+                .iter()
+                .filter(|i| i.source_item_id.is_none())
+                .map(move |i| (i.id, format!("{} / {}", gname, i.label)))
+        })
         .collect();
 
     let commit_rename = {
@@ -172,6 +211,33 @@ pub fn WarRoomPage(id: i64) -> Element {
     };
 
     let group_count = groups.len();
+
+    // Precompute the "link an item" picker data (rsx control-flow blocks can't
+    // hold bare `let` statements, so this is built here).
+    let link_data: Option<(i64, Vec<(i64, String)>, HashMap<i64, String>)> =
+        link_dialog.read().clone().map(|gid| {
+            let already: HashSet<i64> = groups
+                .iter()
+                .find(|g| g.group.id == gid)
+                .map(|g| g.items.iter().filter_map(|i| i.source_item_id).collect())
+                .unwrap_or_default();
+            let candidates: Vec<(i64, String)> = groups
+                .iter()
+                .filter(|g| g.group.id != gid)
+                .flat_map(|g| {
+                    let gname = g.group.name.clone();
+                    g.items
+                        .iter()
+                        .filter(|i| i.source_item_id.is_none() && !already.contains(&i.id))
+                        .map(move |i| (i.id, format!("{} / {}", gname, i.label)))
+                })
+                .collect();
+            let label_for: HashMap<i64, String> = groups
+                .iter()
+                .flat_map(|g| g.items.iter().map(|i| (i.id, i.label.clone())))
+                .collect();
+            (gid, candidates, label_for)
+        });
 
     rsx! {
         div { class: "page",
@@ -420,6 +486,30 @@ pub fn WarRoomPage(id: i64) -> Element {
                 on_close: move |_| item_dialog.clone().set(None),
             }
         }
+
+        // ---- Link (mirror existing item) dialog ----
+        if let Some((gid , candidates , label_for)) = link_data.clone() {
+            WarRoomLinkDialog {
+                candidates,
+                on_confirm: move |source_id: i64| {
+                    let label = label_for.get(&source_id).cloned().unwrap_or_default();
+                    spawn(async move {
+                        let _ = api::war_rooms::create_item(
+                                gid,
+                                &CreateItemInput {
+                                    label,
+                                    source_item_id: Some(source_id),
+                                    ..Default::default()
+                                },
+                            )
+                            .await;
+                        state.invalidate_war_rooms();
+                    });
+                    link_dialog.clone().set(None);
+                },
+                on_close: move |_| link_dialog.clone().set(None),
+            }
+        }
     }
 }
 
@@ -470,15 +560,52 @@ fn GroupCard(
         });
     };
     let add_item = move |_| ctx.item_dialog.clone().set(Some((group_id, None)));
+    let link_item = move |_| ctx.link_dialog.clone().set(Some(group_id));
+
+    // Paste the clipboard item into this group as an independent copy.
+    let copied = ctx.copied_item.read().clone();
+    let paste_item = {
+        let copied = copied.clone();
+        move |_| {
+            let Some(ci) = copied.clone() else { return };
+            spawn(async move {
+                let _ = api::war_rooms::create_item(group_id, &item_to_create(&ci)).await;
+                state.invalidate_war_rooms();
+            });
+        }
+    };
 
     let repo_label = group.repo.clone().unwrap_or_default();
     let item_count = items.len();
+
+    // Overall group status, rolled up from each item's effective stage (mirror
+    // rows contribute their source item's stage).
+    let stages: Vec<String> = items
+        .iter()
+        .map(|i| match i.source_item_id {
+            Some(sid) => all_groups
+                .iter()
+                .flat_map(|g| g.items.iter())
+                .find(|x| x.id == sid)
+                .map(|x| x.stage.clone())
+                .unwrap_or_else(|| i.stage.clone()),
+            None => i.stage.clone(),
+        })
+        .collect();
+    let rollup = group_rollup_stage(&stages);
 
     rsx! {
         div { class: "wr-group",
             div { class: "wr-group-head",
                 div { class: "wr-group-title",
                     span { class: "wr-group-name", "{group.name}" }
+                    if let Some(st) = rollup.clone() {
+                        span {
+                            class: "badge {stage_badge_class(&st)}",
+                            title: "Overall group status",
+                            "{stage_label(&st)}"
+                        }
+                    }
                     if !repo_label.is_empty() {
                         span { class: "label-chip", "{repo_label}" }
                     }
@@ -503,6 +630,16 @@ fn GroupCard(
                     }
                     button { class: "icon-btn danger", title: "Delete group", onclick: delete_group,
                         Icon { width: 15, height: 15, icon: LdTrash2 }
+                    }
+                    if let Some(ci) = copied.clone() {
+                        button { class: "btn btn-sm", title: "Paste \"{ci.label}\" here as a copy", onclick: paste_item,
+                            Icon { width: 14, height: 14, icon: LdClipboardPaste }
+                            "Paste"
+                        }
+                    }
+                    button { class: "btn btn-sm", title: "Mirror an item from another group", onclick: link_item,
+                        Icon { width: 14, height: 14, icon: LdLink }
+                        "Link"
                     }
                     button { class: "btn btn-sm", onclick: add_item,
                         Icon { width: 14, height: 14, icon: LdPlus }
@@ -540,19 +677,36 @@ fn ItemRow(
     let ctx = use_context::<WarCtx>();
     let state = ctx.state;
     let item_id = item.id;
-    let checklist = item.checklist_items();
+    let is_ref = item.source_item_id.is_some();
+
+    // A mirror row renders its source's live data (and the source's repo for
+    // links); a normal row renders itself.
+    let (disp, disp_repo, source_group) = match item.source_item_id {
+        Some(sid) => match ctx.items_by_id.read().get(&sid) {
+            Some((src, src_repo, src_name)) => {
+                (src.clone(), src_repo.clone(), Some(src_name.clone()))
+            }
+            None => (item.clone(), repo.clone(), Some("removed".to_string())),
+        },
+        None => (item.clone(), repo.clone(), None),
+    };
+
+    let checklist = disp.checklist_items();
     let done_count = checklist.iter().filter(|c| c.done).count();
 
-    let link = match (&repo, item.ref_number) {
+    let link = match (&disp_repo, disp.ref_number) {
         (Some(r), Some(n)) if !r.is_empty() => {
-            Some(github_url(r, item.ref_type.as_deref(), n))
+            Some(github_url(r, disp.ref_type.as_deref(), n))
         }
         _ => None,
     };
 
-    let dep_label = item
-        .depends_on
-        .and_then(|d| ctx.dep_labels.read().get(&d).cloned());
+    let dep_label = disp.depends_on.and_then(|d| {
+        ctx.items_by_id
+            .read()
+            .get(&d)
+            .map(|(it, _, _)| format!("{} ({})", it.label, stage_label(&it.stage)))
+    });
 
     // Reorder within the group.
     let move_item = {
@@ -589,16 +743,22 @@ fn ItemRow(
         });
     };
 
-    let ref_badge = item.ref_number.map(|n| {
-        let prefix = if item.ref_type.as_deref() == Some("issue") { "#" } else { "PR #" };
+    let ref_badge = disp.ref_number.map(|n| {
+        let prefix = if disp.ref_type.as_deref() == Some("issue") { "#" } else { "PR #" };
         format!("{prefix}{n}")
     });
 
     rsx! {
-        div { class: "wr-item",
+        div { class: if is_ref { "wr-item wr-item-linked" } else { "wr-item" },
             div { class: "wr-item-main",
-                span { class: "badge {stage_badge_class(&item.stage)}", "{stage_label(&item.stage)}" }
-                span { class: "wr-item-label", "{item.label}" }
+                span { class: "badge {stage_badge_class(&disp.stage)}", "{stage_label(&disp.stage)}" }
+                span { class: "wr-item-label", "{disp.label}" }
+                if let Some(src) = source_group.clone() {
+                    span { class: "wr-link-chip", title: "Mirrors an item in \"{src}\" — edit the original to update",
+                        Icon { width: 11, height: 11, icon: LdLink }
+                        "{src}"
+                    }
+                }
                 if let Some(rb) = ref_badge {
                     if let Some(href) = link.clone() {
                         a {
@@ -634,15 +794,29 @@ fn ItemRow(
                     onclick: move |_| move_down(1),
                     Icon { width: 14, height: 14, icon: LdChevronDown }
                 }
-                button { class: "icon-btn", title: "Edit item", onclick: edit_item,
-                    Icon { width: 14, height: 14, icon: LdPencil }
+                if !is_ref {
+                    button {
+                        class: "icon-btn",
+                        title: "Copy item (paste into any group)",
+                        onclick: {
+                            let item = item.clone();
+                            move |_| ctx.copied_item.clone().set(Some(item.clone()))
+                        },
+                        Icon { width: 14, height: 14, icon: LdCopy }
+                    }
+                    button { class: "icon-btn", title: "Edit item", onclick: edit_item,
+                        Icon { width: 14, height: 14, icon: LdPencil }
+                    }
                 }
-                button { class: "icon-btn danger", title: "Delete item", onclick: delete_item,
+                button {
+                    class: "icon-btn danger",
+                    title: if is_ref { "Unlink (remove this mirror)" } else { "Delete item" },
+                    onclick: delete_item,
                     Icon { width: 14, height: 14, icon: LdTrash2 }
                 }
             }
-            if !item.note.trim().is_empty() {
-                div { class: "wr-item-note", "{item.note}" }
+            if !disp.note.trim().is_empty() {
+                div { class: "wr-item-note", "{disp.note}" }
             }
             if !checklist.is_empty() {
                 div { class: "wr-checklist",
@@ -650,26 +824,30 @@ fn ItemRow(
                         label {
                             key: "{step_idx}",
                             class: "wr-step",
-                            input {
-                                r#type: "checkbox",
-                                checked: step.done,
-                                onchange: {
-                                    let item = item.clone();
-                                    move |e: Event<FormData>| {
-                                        let mut list = item.checklist_items();
-                                        if let Some(s) = list.get_mut(step_idx) {
-                                            s.done = e.checked();
+                            if is_ref {
+                                input { r#type: "checkbox", checked: step.done, disabled: true }
+                            } else {
+                                input {
+                                    r#type: "checkbox",
+                                    checked: step.done,
+                                    onchange: {
+                                        let item = item.clone();
+                                        move |e: Event<FormData>| {
+                                            let mut list = item.checklist_items();
+                                            if let Some(s) = list.get_mut(step_idx) {
+                                                s.done = e.checked();
+                                            }
+                                            let update = UpdateItemInput {
+                                                checklist: Some(list),
+                                                ..item_to_update(&item, Some(item.position))
+                                            };
+                                            spawn(async move {
+                                                let _ = api::war_rooms::update_item(item.id, &update).await;
+                                                state.invalidate_war_rooms();
+                                            });
                                         }
-                                        let update = UpdateItemInput {
-                                            checklist: Some(list),
-                                            ..item_to_update(&item, Some(item.position))
-                                        };
-                                        spawn(async move {
-                                            let _ = api::war_rooms::update_item(item.id, &update).await;
-                                            state.invalidate_war_rooms();
-                                        });
-                                    }
-                                },
+                                    },
+                                }
                             }
                             span {
                                 class: if step.done { "wr-step-done" } else { "" },
