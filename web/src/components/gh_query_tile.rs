@@ -66,7 +66,10 @@ fn row_ref_type(row: &Value, commands: &[String]) -> &'static str {
     if let Some(b) = row.get("isPullRequest").and_then(|v| v.as_bool()) {
         return if b { "pr" } else { "issue" };
     }
-    let cmd = commands.first().map(|s| s.to_lowercase()).unwrap_or_default();
+    let cmd = commands
+        .first()
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
     if cmd.starts_with("pr ") || cmd.contains(" prs ") || cmd.starts_with("prs ") {
         "pr"
     } else {
@@ -94,7 +97,8 @@ fn row_repo(row: &Value) -> Option<String> {
 
 fn row_number(row: &Value) -> Option<i64> {
     let n = row.get("number")?;
-    n.as_i64().or_else(|| n.as_str().and_then(|s| s.parse().ok()))
+    n.as_i64()
+        .or_else(|| n.as_str().and_then(|s| s.parse().ok()))
 }
 
 fn row_key(row: &Value) -> Option<String> {
@@ -171,7 +175,7 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
     let mut open_filter_col = use_signal(|| None::<String>);
     let mut filter_anchor = use_signal(|| (0.0_f64, 0.0_f64));
     let filter_search = use_signal(String::new);
-    let mut hovered_row = use_signal(|| None::<usize>);
+    let hovered_row = use_signal(|| None::<usize>);
     let drag_row = use_signal(|| None::<String>);
     let drag_over_idx = use_signal(|| None::<usize>);
     let context_menu = use_signal(|| None::<(f64, f64, String)>);
@@ -213,7 +217,10 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
                     if missing {
                         let name = rc.split('/').nth(1).unwrap_or(rc);
                         if let Some(o) = row.as_object_mut() {
-                            o.insert("repository".into(), json!({"nameWithOwner": rc, "name": name}));
+                            o.insert(
+                                "repository".into(),
+                                json!({"nameWithOwner": rc, "name": name}),
+                            );
                         }
                     }
                 }
@@ -243,7 +250,12 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
             .iter()
             .filter_map(|n| {
                 Some((
-                    format!("{}|{}|{}", n.repo.clone()?, n.ref_type.clone()?, n.ref_number?),
+                    format!(
+                        "{}|{}|{}",
+                        n.repo.clone()?,
+                        n.ref_type.clone()?,
+                        n.ref_number?
+                    ),
                     n.clone(),
                 ))
             })
@@ -308,7 +320,11 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
             let av = extract_display(a.get(sk).unwrap_or(&Value::Null), ex_of(&extractors, sk));
             let bv = extract_display(b.get(sk).unwrap_or(&Value::Null), ex_of(&extractors, sk));
             let c = cmp_vals(&av, &bv);
-            if sdir == "asc" { c } else { c.reverse() }
+            if sdir == "asc" {
+                c
+            } else {
+                c.reverse()
+            }
         });
         v
     } else {
@@ -357,7 +373,11 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
     let mut handle_sort = move |k: String| {
         sort_mode.set("column".into());
         if sort_key.read().as_deref() == Some(k.as_str()) {
-            let d = if sort_dir.read().as_str() == "asc" { "desc" } else { "asc" };
+            let d = if sort_dir.read().as_str() == "asc" {
+                "desc"
+            } else {
+                "asc"
+            };
             sort_dir.set(d.into());
         } else {
             sort_key.set(Some(k));
@@ -622,7 +642,11 @@ fn render_row(
         _ => None,
     };
     let prefill = CreateNoteInput {
-        title: row.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        title: row
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
         repo: repo.clone(),
         ref_type: Some(ref_type.clone()),
         ref_number: ref_num,
@@ -734,7 +758,10 @@ fn render_cell(
     } else {
         display.clone()
     };
-    let is_active = filters_now.get(&k).map(|v| v.contains(&display)).unwrap_or(false);
+    let is_active = filters_now
+        .get(&k)
+        .map(|v| v.contains(&display))
+        .unwrap_or(false);
 
     if k == "number" {
         if let Some(u) = &url {

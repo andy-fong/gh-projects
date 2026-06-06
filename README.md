@@ -53,8 +53,7 @@ dx serve -p gh-projects-web
 ```
 
 This serves the app on its own port with hot reload and proxies `/api` to the
-backend on :3001 (configured in `web/Dioxus.toml`), mirroring the old Vite dev
-server.
+backend on :3001 (configured in `web/Dioxus.toml`).
 
 Override defaults with environment variables:
 

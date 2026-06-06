@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use dioxus_free_icons::icons::ld_icons::{LdClipboardPaste, LdPlus};
+use dioxus_free_icons::icons::ld_icons::{LdClipboardPaste, LdPlus, LdTrash2};
 use dioxus_free_icons::Icon;
 use hadrone_core::{CompactionType, InteractionPhase, LayoutEvent, LayoutItem};
 use hadrone_dioxus::GridLayout;
@@ -13,6 +13,7 @@ use crate::components::note_tile::NoteTile;
 use crate::components::tile_wrapper::TileWrapper;
 use crate::state::{use_app_state, AppState};
 use crate::types::{CreateTileInput, GhQueryConfig, Tile, TileLayout, UpdateTileInput};
+use crate::Route;
 
 /// Context for `render_item` (which must be a plain `fn`, so it can't capture
 /// the page's state — it reads everything it needs from here).
@@ -167,12 +168,14 @@ pub fn DashboardPage(id: i64) -> Element {
         async move { api::tiles::list(id).await }
     });
 
+    let nav = use_navigator();
     let mut show_new_tile = use_signal(|| false);
     let mut new_tile_initial = use_signal(|| None::<NewTileInit>);
-    let mut copied_tile = use_signal(|| None::<Tile>);
+    let copied_tile = use_signal(|| None::<Tile>);
     let mut editing_tile = use_signal(|| None::<Tile>);
     let mut renaming = use_signal(|| false);
     let mut rename_value = use_signal(String::new);
+    let mut confirm_delete = use_signal(|| false);
     let mut tiles_sig = use_signal(Vec::<Tile>::new);
     let mut layout = use_signal(Vec::<LayoutItem>::new);
 
@@ -205,7 +208,11 @@ pub fn DashboardPage(id: i64) -> Element {
     {
         let mut now: Vec<i64> = tiles_vec.iter().map(|t| t.id).collect();
         now.sort_unstable();
-        let mut have: Vec<i64> = layout.peek().iter().filter_map(|i| i.id.parse().ok()).collect();
+        let mut have: Vec<i64> = layout
+            .peek()
+            .iter()
+            .filter_map(|i| i.id.parse().ok())
+            .collect();
         have.sort_unstable();
         if now != have {
             layout.set(build_layout(&tiles_vec));
@@ -273,7 +280,12 @@ pub fn DashboardPage(id: i64) -> Element {
     // `on_layout_change` prop is a no-op in 0.1.1; `on_layout_event` is the
     // real callback — it delivers the final layout on InteractionPhase::Stop.)
     let on_layout_event = move |ev: LayoutEvent| {
-        let LayoutEvent::Interaction { phase, layout: items, .. } = ev else {
+        let LayoutEvent::Interaction {
+            phase,
+            layout: items,
+            ..
+        } = ev
+        else {
             return;
         };
         if matches!(phase, InteractionPhase::Start | InteractionPhase::Update) {
@@ -347,6 +359,37 @@ pub fn DashboardPage(id: i64) -> Element {
                             onclick: open_paste,
                             Icon { width: 16, height: 16, icon: LdClipboardPaste }
                             "Paste tile"
+                        }
+                    }
+                    if confirm_delete() {
+                        button {
+                            class: "btn btn-danger btn-sm",
+                            onclick: move |_| {
+                                let did = id_sig();
+                                let nav = nav.clone();
+                                spawn(async move {
+                                    if api::dashboards::delete(did).await.is_ok() {
+                                        state.invalidate_dashboards();
+                                        nav.push(Route::Home {});
+                                    }
+                                });
+                                confirm_delete.set(false);
+                            },
+                            Icon { width: 16, height: 16, icon: LdTrash2 }
+                            "Confirm delete"
+                        }
+                        button {
+                            class: "btn btn-sm",
+                            onclick: move |_| confirm_delete.set(false),
+                            "Cancel"
+                        }
+                    } else {
+                        button {
+                            class: "btn btn-sm",
+                            title: "Delete this dashboard",
+                            onclick: move |_| confirm_delete.set(true),
+                            Icon { width: 16, height: 16, icon: LdTrash2 }
+                            "Delete"
                         }
                     }
                     button {

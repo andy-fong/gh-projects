@@ -16,6 +16,7 @@ use pages::notes::NotesPage;
 use state::AppState;
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const FAVICON: Asset = asset!("/assets/favicon.svg");
 
 #[derive(Routable, Clone, PartialEq)]
 pub enum Route {
@@ -60,6 +61,7 @@ fn App() -> Element {
 
     rsx! {
         document::Stylesheet { href: MAIN_CSS }
+        document::Link { rel: "icon", r#type: "image/svg+xml", href: FAVICON }
         Router::<Route> {}
     }
 }

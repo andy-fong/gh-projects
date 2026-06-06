@@ -86,6 +86,8 @@ input, textarea, select { font-family: inherit; }
 .btn-ghost { background: none; color: var(--muted); }
 .btn-ghost:hover { background: var(--elevated); color: var(--text); }
 .btn-sm { padding: 4px 8px; font-size: 12px; }
+.btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-danger:hover { background: #da3633; }
 .btn:disabled { opacity: .5; cursor: default; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
