@@ -74,7 +74,15 @@ export default function NotesPage() {
                 <h2 className="text-sm font-semibold">{selected.title}</h2>
                 {selected.repo && (
                   <div className="text-xs text-gray-500 mt-0.5">
-                    {selected.repo}{selected.ref_number ? ` · ${selected.ref_type} #${selected.ref_number}` : ''}
+                    {selected.repo}{selected.ref_number ? (
+                      <> · {selected.ref_type} <a
+                        href={`https://github.com/${selected.repo}/${selected.ref_type === 'pr' ? 'pull' : 'issues'}/${selected.ref_number}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-gray-300 hover:underline"
+                        onClick={e => e.stopPropagation()}
+                      >#{selected.ref_number}</a></>
+                    ) : ''}
                   </div>
                 )}
               </div>
