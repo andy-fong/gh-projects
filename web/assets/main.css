@@ -146,11 +146,14 @@ input, textarea, select { font-family: inherit; }
   min-height: 200px; max-height: 520px;
 }
 .tile.wide { grid-column: span 2; }
+/* Inside the hadrone grid each cell is sized absolutely; the tile fills it. */
+.grid-item .tile { height: 100%; min-height: 0; max-height: none; }
 .tile-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
   user-select: none;
 }
+.tile-head.drag-handle { cursor: move; }
 .tile-head-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .tile-title { font-size: 14px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile-actions { display: flex; gap: 4px; flex-shrink: 0; }

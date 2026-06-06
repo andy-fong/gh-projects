@@ -7,11 +7,10 @@ A custom GitHub dashboard — tiles that each run a `gh` CLI command to fetch li
 ## Features
 
 - **Dashboards** — create multiple named dashboards, each with its own tile grid
+- **Drag & resize tiles** — a 12-column grid (powered by [`hadrone-dioxus`](https://crates.io/crates/hadrone-dioxus)); drag a tile by its header, resize from the bottom-right handle. Position and size are persisted per tile to the database.
 - **GH Query tiles** — each tile runs any `gh` CLI command and displays the JSON result as a sortable, filterable table
 - **Note tiles** — embed a private note directly on a dashboard
 - **Notes page** — full CRUD for private Markdown notes, optionally linked to a GitHub repo / issue / PR; one-click link to open the issue or PR on GitHub
-
-> Tile layout is currently a simple responsive grid. Free drag/resize positioning is planned (the backend already persists per-tile `{x,y,w,h}` layout).
 
 ## Prerequisites
 

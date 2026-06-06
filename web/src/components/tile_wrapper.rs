@@ -19,12 +19,17 @@ pub fn TileWrapper(
             class: "tile",
             onmouseenter: move |_| hovered.set(true),
             onmouseleave: move |_| hovered.set(false),
-            div { class: "tile-head",
+            // The header is the drag handle (hadrone makes the whole grid item
+            // draggable via pointerdown; the body/actions below stop propagation
+            // so only the header initiates a drag — clicks in the body still work).
+            div { class: "tile-head drag-handle",
                 div { class: "tile-head-title",
                     span { class: "tile-title", "{title}" }
                 }
                 if hovered() {
-                    div { class: "tile-actions",
+                    div {
+                        class: "tile-actions",
+                        onpointerdown: move |e| e.stop_propagation(),
                         button {
                             class: "icon-btn",
                             title: "Copy tile",
@@ -46,7 +51,11 @@ pub fn TileWrapper(
                     }
                 }
             }
-            div { class: "tile-body", {children} }
+            div {
+                class: "tile-body",
+                onpointerdown: move |e| e.stop_propagation(),
+                {children}
+            }
         }
     }
 }
