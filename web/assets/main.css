@@ -168,6 +168,8 @@ input, textarea, select { font-family: inherit; }
 .gh-table th.num { width: 32px; text-align: right; color: var(--muted-dim); }
 .gh-table td { padding: 4px 8px; color: var(--text); border-bottom: 1px solid var(--border-soft); max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gh-table tr:hover { background: rgba(110,118,129,.1); }
+.gh-table tr.drag-over { outline: 1px solid rgba(47,129,247,.5); background: rgba(47,129,247,.06); }
+.gh-table tbody tr[draggable="true"] .num-cell { cursor: grab; }
 .gh-table .num-cell { text-align: right; color: var(--muted-dim); font-variant-numeric: tabular-nums; width: 32px; }
 .col-head { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; text-transform: capitalize; }
 .col-head:hover { color: var(--text); }

@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
-    LdChevronDown, LdChevronUp, LdChevronsUpDown, LdColumns2, LdFilter, LdListOrdered, LdSearch,
-    LdStickyNote, LdX,
+    LdChevronDown, LdChevronUp, LdChevronsUpDown, LdColumns2, LdFilter, LdGripVertical,
+    LdListOrdered, LdSearch, LdStickyNote, LdX,
 };
 use dioxus_free_icons::Icon;
 use serde_json::{json, Value};
@@ -172,6 +172,8 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
     let mut filter_anchor = use_signal(|| (0.0_f64, 0.0_f64));
     let filter_search = use_signal(String::new);
     let mut hovered_row = use_signal(|| None::<usize>);
+    let drag_row = use_signal(|| None::<String>);
+    let drag_over_idx = use_signal(|| None::<usize>);
     let context_menu = use_signal(|| None::<(f64, f64, String)>);
     let note_init = use_signal(|| None::<CreateNoteInput>);
     let note_editing = use_signal(|| None::<Note>);
@@ -348,6 +350,9 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
             .collect()
     };
 
+    // Ordered keys of the currently displayed rows (for drag-reorder math).
+    let display_keys: Vec<String> = rows.iter().filter_map(row_key).collect();
+
     // ----- handlers (closures capture Copy signals → Copy, 'static) -----
     let mut handle_sort = move |k: String| {
         sort_mode.set("column".into());
@@ -489,6 +494,7 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
                             {render_row(
                                 i, row, &keys, &commands, &extractors, &filters_now, &note_map,
                                 hovered_row, filters, note_init, note_editing, detail_item, context_menu,
+                                display_keys.clone(), row_order, sort_mode, tile_id, drag_row, drag_over_idx,
                             )}
                         }
                         if rows.is_empty() {
@@ -541,6 +547,41 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
 
 // ---------- row + cell rendering (signals are Copy; no borrows captured in closures) ----------
 
+/// Reorder rows by priority and persist the new order server-side (the same
+/// store the backup function serializes). Mirrors React's `reorderRows`.
+fn reorder_rows(
+    from_key: &str,
+    to_idx: usize,
+    display_keys: &[String],
+    mut row_order: Signal<Vec<String>>,
+    mut sort_mode: Signal<String>,
+    tile_id: i64,
+) {
+    let Some(from_idx) = display_keys.iter().position(|k| k == from_key) else {
+        return;
+    };
+    let mut new_display: Vec<String> = display_keys.to_vec();
+    let item = new_display.remove(from_idx);
+    let to = to_idx.min(new_display.len());
+    new_display.insert(to, item);
+
+    let displayed: HashSet<&String> = display_keys.iter().collect();
+    let non_displayed: Vec<String> = row_order
+        .peek()
+        .iter()
+        .filter(|k| !displayed.contains(k))
+        .cloned()
+        .collect();
+    let mut next = new_display;
+    next.extend(non_displayed);
+
+    row_order.set(next.clone());
+    sort_mode.set("priority".into());
+    spawn(async move {
+        let _ = api::row_order::set(tile_id, next).await;
+    });
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_row(
     index: usize,
@@ -556,6 +597,12 @@ fn render_row(
     mut note_editing: Signal<Option<Note>>,
     detail_item: Signal<Option<(String, String, i64, String)>>,
     mut context_menu: Signal<Option<(f64, f64, String)>>,
+    display_keys: Vec<String>,
+    row_order: Signal<Vec<String>>,
+    sort_mode: Signal<String>,
+    tile_id: i64,
+    mut drag_row: Signal<Option<String>>,
+    mut drag_over_idx: Signal<Option<usize>>,
 ) -> Element {
     let r_key = row_key(row);
     let url = row.get("url").and_then(|v| v.as_str()).map(String::from);
@@ -563,6 +610,8 @@ fn render_row(
     let ref_type = row_ref_type(row, commands).to_string();
     let ref_num = row_number(row);
     let is_hovered = *hovered_row.read() == Some(index);
+    let is_drag_over = *drag_over_idx.read() == Some(index);
+    let draggable = r_key.is_some();
 
     let has_note = match (&repo, ref_num) {
         (Some(r), Some(n)) => note_map.contains_key(&format!("{r}|{ref_type}|{n}")),
@@ -581,9 +630,14 @@ fn render_row(
     };
 
     let r_key_ctx = r_key.clone();
+    let r_key_ds = r_key.clone();
+    let r_key_drop = r_key.clone();
+    let dk = display_keys;
 
     rsx! {
         tr {
+            class: if is_drag_over { "drag-over" } else { "" },
+            draggable,
             onmouseenter: move |_| hovered_row.set(Some(index)),
             onmouseleave: move |_| hovered_row.set(None),
             oncontextmenu: move |e: Event<MouseData>| {
@@ -593,7 +647,37 @@ fn render_row(
                     context_menu.set(Some((c.x, c.y, k)));
                 }
             },
-            td { class: "num-cell", "{index + 1}" }
+            ondragstart: move |_| {
+                if let Some(k) = &r_key_ds {
+                    drag_row.set(Some(k.clone()));
+                }
+            },
+            ondragover: move |e: Event<DragData>| {
+                e.prevent_default();
+                drag_over_idx.set(Some(index));
+            },
+            ondrop: move |e: Event<DragData>| {
+                e.prevent_default();
+                drag_over_idx.set(None);
+                let from = drag_row.read().clone();
+                drag_row.set(None);
+                if let Some(from) = from {
+                    if Some(from.as_str()) != r_key_drop.as_deref() {
+                        reorder_rows(&from, index, &dk, row_order, sort_mode, tile_id);
+                    }
+                }
+            },
+            ondragend: move |_| {
+                drag_row.set(None);
+                drag_over_idx.set(None);
+            },
+            td { class: "num-cell",
+                if is_hovered && draggable {
+                    Icon { width: 14, height: 14, icon: LdGripVertical }
+                } else {
+                    "{index + 1}"
+                }
+            }
             for k in keys.iter() {
                 {render_cell(
                     k.clone(), row, url.clone(), repo.clone(), ref_type.clone(), ref_num,
