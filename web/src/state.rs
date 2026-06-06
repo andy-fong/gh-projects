@@ -32,6 +32,8 @@ pub struct AppState {
     pub tiles_ver: Signal<u32>,
     pub notes_ver: Signal<u32>,
     pub gh_ver: Signal<u32>,
+    pub war_rooms_ver: Signal<u32>,
+    pub repos_ver: Signal<u32>,
     /// User-defined field extractors (NOT merged with defaults).
     pub user_extractors: Signal<BTreeMap<String, String>>,
 }
@@ -43,6 +45,8 @@ impl AppState {
             tiles_ver: Signal::new(0),
             notes_ver: Signal::new(0),
             gh_ver: Signal::new(0),
+            war_rooms_ver: Signal::new(0),
+            repos_ver: Signal::new(0),
             user_extractors: Signal::new(load_user_extractors()),
         }
     }
@@ -58,6 +62,12 @@ impl AppState {
     }
     pub fn invalidate_gh(mut self) {
         *self.gh_ver.write() += 1;
+    }
+    pub fn invalidate_war_rooms(mut self) {
+        *self.war_rooms_ver.write() += 1;
+    }
+    pub fn invalidate_repos(mut self) {
+        *self.repos_ver.write() += 1;
     }
 
     /// Defaults merged with user overrides (defaults first, user wins).

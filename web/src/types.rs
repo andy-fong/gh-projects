@@ -81,6 +81,182 @@ pub struct NoteConfig {
     pub note_id: i64,
 }
 
+// ---- Repo registry (reusable across war rooms) ----
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct Repo {
+    pub id: i64,
+    pub name: String,
+    pub owner_repo: String,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct CreateRepoInput {
+    pub name: String,
+    pub owner_repo: String,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct UpdateRepoInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_repo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<i64>,
+}
+
+// ---- War rooms ----
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct WarRoom {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    pub status: String,
+    pub config: String,
+    #[serde(default)]
+    pub links: String,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct WarRoomGroup {
+    pub id: i64,
+    pub war_room_id: i64,
+    pub repo_id: Option<i64>,
+    pub name: String,
+    pub repo: Option<String>,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Default)]
+pub struct ChecklistItem {
+    pub text: String,
+    #[serde(default)]
+    pub done: bool,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct WarRoomItem {
+    pub id: i64,
+    pub group_id: i64,
+    pub label: String,
+    pub ref_type: Option<String>,
+    pub ref_number: Option<i64>,
+    pub note: String,
+    pub stage: String,
+    pub checklist: String, // JSON array string
+    pub depends_on: Option<i64>,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl WarRoomItem {
+    /// Parse the stored checklist JSON; empty/invalid yields an empty list.
+    pub fn checklist_items(&self) -> Vec<ChecklistItem> {
+        serde_json::from_str(&self.checklist).unwrap_or_default()
+    }
+}
+
+/// Composite read model returned by `GET /api/war-rooms/:id` (fields flattened).
+#[derive(Clone, PartialEq, Debug, Deserialize)]
+pub struct WarRoomDetail {
+    #[serde(flatten)]
+    pub war_room: WarRoom,
+    pub groups: Vec<GroupWithItems>,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize)]
+pub struct GroupWithItems {
+    #[serde(flatten)]
+    pub group: WarRoomGroup,
+    pub items: Vec<WarRoomItem>,
+}
+
+// ---- War room request payloads ----
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct CreateWarRoomInput {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct UpdateWarRoomInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub links: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<i64>,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct CreateGroupInput {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
+}
+
+/// Group update is replace-style: send the full group (nullable repo fields
+/// included) so omitting them clears them.
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct UpdateGroupInput {
+    pub name: Option<String>,
+    pub repo_id: Option<i64>,
+    pub repo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<i64>,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct CreateItemInput {
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ref_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ref_number: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checklist: Option<Vec<ChecklistItem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depends_on: Option<i64>,
+}
+
+/// Item update is replace-style: send the full item (nullable ref/depends
+/// fields included) so omitting them clears them.
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct UpdateItemInput {
+    pub label: Option<String>,
+    pub ref_type: Option<String>,
+    pub ref_number: Option<i64>,
+    pub note: Option<String>,
+    pub stage: Option<String>,
+    pub checklist: Option<Vec<ChecklistItem>>,
+    pub depends_on: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<i64>,
+}
+
 // ---- Request input payloads ----
 
 #[derive(Clone, Debug, PartialEq, Serialize, Default)]

@@ -11,6 +11,7 @@ A custom GitHub dashboard — tiles that each run a `gh` CLI command to fetch li
 - **GH Query tiles** — each tile runs any `gh` CLI command and displays the JSON result as a sortable, filterable table
 - **Note tiles** — embed a private note directly on a dashboard
 - **Notes page** — full CRUD for private Markdown notes, optionally linked to a GitHub repo / issue / PR; one-click link to open the issue or PR on GitHub
+- **War Rooms** — a free-style tracker for coordinated efforts (e.g. patching a CVE across several repos/releases). A war room is a list of **groups** (each bound to a repo), and each group holds **items** (a release/PR/issue) with a manual lifecycle **stage**, a free-text note, a checklist of steps, and an optional GitHub PR/issue link. Items inherit their group's repo. Repos come from a reusable, global **registry** (sidebar → *Repos*) so the same repos can be selected across war rooms.
 
 ## Prerequisites
 
@@ -195,6 +196,14 @@ gh-projects/
 | GET/PUT/DELETE | `/api/dashboards/:id` | Get / update / delete dashboard |
 | GET/POST | `/api/dashboards/:id/tiles` | List / create tiles |
 | PUT/DELETE | `/api/dashboards/:id/tiles/:tid` | Update / delete tile |
+| GET/POST | `/api/repos` | List / create repo-registry entries |
+| PUT/DELETE | `/api/repos/:id` | Update / delete a repo-registry entry |
+| GET/POST | `/api/war-rooms` | List / create war rooms |
+| GET/PUT/DELETE | `/api/war-rooms/:id` | Get (nested groups + items) / update / delete a war room |
+| POST | `/api/war-rooms/:id/groups` | Create a group in a war room |
+| PUT/DELETE | `/api/war-room-groups/:id` | Update / delete a group |
+| POST | `/api/war-room-groups/:id/items` | Create an item in a group |
+| PUT/DELETE | `/api/war-room-items/:id` | Update / delete an item |
 | POST | `/api/gh/execute` | Run a `gh` CLI command, returns JSON output (`cached: true` when served from disk) |
 | POST | `/api/cache/invalidate` | Mark all current cache entries as invalidated (writes a timestamp; no files are deleted) |
 | GET | `/api/cache/status` | Return current `cache_dir`, `ttl_secs`, and `invalidated_at` timestamp |

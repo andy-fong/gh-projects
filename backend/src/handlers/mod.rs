@@ -4,3 +4,5 @@ pub mod tiles;
 pub mod gh;
 pub mod backup;
 pub mod row_order;
+pub mod repos;
+pub mod war_rooms;

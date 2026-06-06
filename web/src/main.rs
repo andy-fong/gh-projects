@@ -8,11 +8,13 @@ mod pages;
 mod platform;
 mod state;
 mod types;
+mod war_room;
 
 use components::sidebar::Sidebar;
 use pages::dashboard::DashboardPage;
 use pages::home::Home;
 use pages::notes::NotesPage;
+use pages::war_room::WarRoomPage;
 use state::AppState;
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -25,6 +27,8 @@ pub enum Route {
     Home {},
     #[route("/dashboards/:id")]
     DashboardPage { id: i64 },
+    #[route("/war-rooms/:id")]
+    WarRoomPage { id: i64 },
     #[route("/notes")]
     NotesPage {},
 }

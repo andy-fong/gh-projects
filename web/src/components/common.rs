@@ -3,13 +3,21 @@ use dioxus::prelude::*;
 /// Renders Markdown as HTML. Replaces `react-markdown`. Empty input shows
 /// "*No content*" like the old app.
 #[component]
-pub fn Prose(text: String, #[props(default)] small: bool) -> Element {
+pub fn Prose(
+    text: String,
+    #[props(default)] small: bool,
+    #[props(default)] blank_links: bool,
+) -> Element {
     let body = if text.trim().is_empty() {
         "*No content*".to_string()
     } else {
         text
     };
-    let html = crate::markdown::to_html(&body);
+    let html = if blank_links {
+        crate::markdown::to_html_blank_links(&body)
+    } else {
+        crate::markdown::to_html(&body)
+    };
     let class = if small { "prose small" } else { "prose" };
     rsx! {
         div { class: "{class}", dangerous_inner_html: "{html}" }

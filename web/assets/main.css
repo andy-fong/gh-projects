@@ -293,3 +293,55 @@ input, textarea, select { font-family: inherit; }
 .text-xs { font-size: 12px; }
 .checkbox-row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
 .checkbox-row:hover { background: var(--elevated); }
+
+/* ---- War rooms ---- */
+.wr-links {
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
+}
+.wr-links-head { display: flex; align-items: center; justify-content: space-between; }
+.wr-links-head .section-label { margin-bottom: 0; }
+.wr-links-edit {
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px; margin-bottom: 16px;
+}
+.wr-links-edit .textarea { width: 100%; margin-bottom: 8px; }
+.wr-group {
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px; margin-bottom: 16px; overflow: hidden;
+}
+.wr-group-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.wr-group-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.wr-group-name { font-weight: 600; font-size: 14px; }
+.wr-group-actions { display: flex; align-items: center; gap: 4px; }
+.wr-empty { padding: 12px; color: var(--muted-dim); font-size: 13px; }
+
+.wr-item { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); }
+.wr-item:last-child { border-bottom: none; }
+.wr-item-main { display: flex; align-items: center; gap: 8px; }
+.wr-item-label { font-weight: 500; }
+.wr-item-note { color: var(--muted); font-size: 12px; margin: 4px 0 0 4px; white-space: pre-wrap; }
+.wr-ref-link { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; }
+.wr-dep { font-size: 11px; color: var(--warn); }
+.wr-progress { font-size: 11px; color: var(--muted-dim); padding: 1px 6px; border: 1px solid var(--border); border-radius: 999px; }
+
+.wr-checklist { margin: 6px 0 0 4px; display: flex; flex-direction: column; gap: 2px; }
+.wr-step { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); cursor: pointer; }
+.wr-step-done { color: var(--muted-dim); text-decoration: line-through; }
+.wr-step-edit { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.wr-step-edit .input { flex: 1; }
+
+.wr-repo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.wr-repo-row .input:first-of-type { flex: 0 0 180px; }
+.wr-repo-row .input { flex: 1; }
+
+/* War room stage badges */
+.wr-badge-todo { background: var(--elevated); color: var(--muted); }
+.wr-badge-progress { background: #1f6feb; color: #fff; }
+.wr-badge-blocked { background: var(--danger); color: #fff; }
+.wr-badge-merged { background: #8957e5; color: #fff; }
+.wr-badge-done { background: #238636; color: #fff; }

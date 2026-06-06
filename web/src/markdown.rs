@@ -18,6 +18,12 @@ pub fn to_html(src: &str) -> String {
     out
 }
 
+/// Like [`to_html`] but forces every link to open in a new tab. pulldown-cmark
+/// emits anchors as `<a href="…">`, so we inject the target/rel attributes.
+pub fn to_html_blank_links(src: &str) -> String {
+    to_html(src).replace("<a href=", "<a target=\"_blank\" rel=\"noopener noreferrer\" href=")
+}
+
 /// Strip HTML comments before rendering (the detail panel does this for GitHub
 /// issue/PR bodies which often contain `<!-- ... -->` template comments).
 pub fn to_html_stripped_comments(src: &str) -> String {

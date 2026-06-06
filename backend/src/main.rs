@@ -21,6 +21,8 @@ use repositories::{
     notes::SqliteNoteRepository,
     tiles::SqliteTileRepository,
     row_order::SqliteRowOrderRepository,
+    repos::SqliteRepoRepository,
+    war_rooms::SqliteWarRoomRepository,
 };
 use state::AppState;
 
@@ -41,6 +43,8 @@ async fn main() -> anyhow::Result<()> {
         dashboards: Arc::new(SqliteDashboardRepository::new(pool.clone())),
         tiles: Arc::new(SqliteTileRepository::new(pool.clone())),
         row_orders: Arc::new(SqliteRowOrderRepository::new(pool.clone())),
+        repos: Arc::new(SqliteRepoRepository::new(pool.clone())),
+        war_rooms: Arc::new(SqliteWarRoomRepository::new(pool.clone())),
         cache_dir: config.cache_dir.clone(),
         cache_ttl_secs: config.cache_ttl_secs,
     };
@@ -62,6 +66,16 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/dashboards/:dashboard_id/tiles/:tile_id", put(handlers::tiles::update_tile).delete(handlers::tiles::delete_tile))
         // Row order
         .route("/api/tiles/:tile_id/row-order", get(handlers::row_order::get_row_order).put(handlers::row_order::set_row_order))
+        // Repo registry (reusable across war rooms)
+        .route("/api/repos", get(handlers::repos::list_repos).post(handlers::repos::create_repo))
+        .route("/api/repos/:id", put(handlers::repos::update_repo).delete(handlers::repos::delete_repo))
+        // War rooms
+        .route("/api/war-rooms", get(handlers::war_rooms::list_war_rooms).post(handlers::war_rooms::create_war_room))
+        .route("/api/war-rooms/:id", get(handlers::war_rooms::get_war_room).put(handlers::war_rooms::update_war_room).delete(handlers::war_rooms::delete_war_room))
+        .route("/api/war-rooms/:id/groups", post(handlers::war_rooms::create_group))
+        .route("/api/war-room-groups/:id", put(handlers::war_rooms::update_group).delete(handlers::war_rooms::delete_group))
+        .route("/api/war-room-groups/:id/items", post(handlers::war_rooms::create_item))
+        .route("/api/war-room-items/:id", put(handlers::war_rooms::update_item).delete(handlers::war_rooms::delete_item))
         // GH CLI
         .route("/api/gh/execute", post(handlers::gh::execute_gh))
         // Cache

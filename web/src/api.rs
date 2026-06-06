@@ -214,6 +214,83 @@ pub mod backup {
     }
 }
 
+// ---- Repo registry ----
+
+pub mod repos {
+    use super::*;
+
+    pub async fn list() -> Result<Vec<Repo>, String> {
+        send_get("/api/repos").await
+    }
+
+    pub async fn create(input: &CreateRepoInput) -> Result<Repo, String> {
+        send_json("POST", "/api/repos", input).await
+    }
+
+    pub async fn update(id: i64, input: &UpdateRepoInput) -> Result<Repo, String> {
+        send_json("PUT", &format!("/api/repos/{id}"), input).await
+    }
+
+    pub async fn delete(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/repos/{id}")).await
+    }
+}
+
+// ---- War rooms ----
+
+pub mod war_rooms {
+    use super::*;
+
+    pub async fn list() -> Result<Vec<WarRoom>, String> {
+        send_get("/api/war-rooms").await
+    }
+
+    pub async fn get(id: i64) -> Result<WarRoomDetail, String> {
+        send_get(&format!("/api/war-rooms/{id}")).await
+    }
+
+    pub async fn create(input: &CreateWarRoomInput) -> Result<WarRoom, String> {
+        send_json("POST", "/api/war-rooms", input).await
+    }
+
+    pub async fn update(id: i64, input: &UpdateWarRoomInput) -> Result<WarRoom, String> {
+        send_json("PUT", &format!("/api/war-rooms/{id}"), input).await
+    }
+
+    pub async fn delete(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/war-rooms/{id}")).await
+    }
+
+    // Groups
+    pub async fn create_group(
+        war_room_id: i64,
+        input: &CreateGroupInput,
+    ) -> Result<WarRoomGroup, String> {
+        send_json("POST", &format!("/api/war-rooms/{war_room_id}/groups"), input).await
+    }
+
+    pub async fn update_group(id: i64, input: &UpdateGroupInput) -> Result<WarRoomGroup, String> {
+        send_json("PUT", &format!("/api/war-room-groups/{id}"), input).await
+    }
+
+    pub async fn delete_group(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/war-room-groups/{id}")).await
+    }
+
+    // Items
+    pub async fn create_item(group_id: i64, input: &CreateItemInput) -> Result<WarRoomItem, String> {
+        send_json("POST", &format!("/api/war-room-groups/{group_id}/items"), input).await
+    }
+
+    pub async fn update_item(id: i64, input: &UpdateItemInput) -> Result<WarRoomItem, String> {
+        send_json("PUT", &format!("/api/war-room-items/{id}"), input).await
+    }
+
+    pub async fn delete_item(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/war-room-items/{id}")).await
+    }
+}
+
 // ---- Row order ----
 
 pub mod row_order {

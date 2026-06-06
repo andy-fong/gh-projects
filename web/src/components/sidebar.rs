@@ -1,13 +1,15 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
-    LdGithub, LdLayoutDashboard, LdPlus, LdRefreshCcw, LdSettings, LdStickyNote,
+    LdFolderGit2, LdGithub, LdLayoutDashboard, LdPlus, LdRefreshCcw, LdSettings, LdSiren,
+    LdStickyNote,
 };
 use dioxus_free_icons::Icon;
 
 use crate::api;
+use crate::components::dialogs::repos_dialog::ReposDialog;
 use crate::components::dialogs::settings_dialog::SettingsDialog;
 use crate::state::use_app_state;
-use crate::types::CreateDashboardInput;
+use crate::types::{CreateDashboardInput, CreateWarRoomInput};
 use crate::Route;
 
 #[component]
@@ -18,16 +20,27 @@ pub fn Sidebar() -> Element {
         Route::DashboardPage { id } => Some(id),
         _ => None,
     };
+    let active_wr = match route {
+        Route::WarRoomPage { id } => Some(id),
+        _ => None,
+    };
 
     let dashboards = use_resource(move || {
         let _ = state.dashboards_ver.read(); // subscribe → refetch on invalidate
         async move { api::dashboards::list().await }
     });
+    let war_rooms = use_resource(move || {
+        let _ = state.war_rooms_ver.read();
+        async move { api::war_rooms::list().await }
+    });
 
     let mut creating = use_signal(|| false);
     let mut new_name = use_signal(String::new);
+    let mut creating_wr = use_signal(|| false);
+    let mut new_wr_name = use_signal(String::new);
     let mut invalidating = use_signal(|| false);
     let mut show_settings = use_signal(|| false);
+    let mut show_repos = use_signal(|| false);
 
     let submit_create = move |_| {
         let name = new_name.read().trim().to_string();
@@ -58,7 +71,31 @@ pub fn Sidebar() -> Element {
         });
     };
 
+    let submit_create_wr = move |_| {
+        let name = new_wr_name.read().trim().to_string();
+        if name.is_empty() {
+            return;
+        }
+        spawn(async move {
+            if api::war_rooms::create(&CreateWarRoomInput {
+                name,
+                description: None,
+            })
+            .await
+            .is_ok()
+            {
+                new_wr_name.set(String::new());
+                creating_wr.set(false);
+                state.invalidate_war_rooms();
+            }
+        });
+    };
+
     let items = match dashboards.read().as_ref() {
+        Some(Ok(v)) => v.clone(),
+        _ => Vec::new(),
+    };
+    let wr_items = match war_rooms.read().as_ref() {
         Some(Ok(v)) => v.clone(),
         _ => Vec::new(),
     };
@@ -106,10 +143,52 @@ pub fn Sidebar() -> Element {
                     }
                 }
 
+                div { class: "sidebar-section", "War Rooms" }
+                for w in wr_items {
+                    Link {
+                        key: "{w.id}",
+                        to: Route::WarRoomPage { id: w.id },
+                        class: if active_wr == Some(w.id) { "nav-item active" } else { "nav-item" },
+                        Icon { width: 16, height: 16, icon: LdSiren }
+                        "{w.name}"
+                    }
+                }
+                if creating_wr() {
+                    input {
+                        class: "input",
+                        style: "margin-top:4px;",
+                        autofocus: true,
+                        placeholder: "War room name…",
+                        value: "{new_wr_name}",
+                        oninput: move |e| new_wr_name.set(e.value()),
+                        onblur: move |_| creating_wr.set(false),
+                        onkeydown: move |e| {
+                            if e.key() == Key::Enter {
+                                submit_create_wr(());
+                            } else if e.key() == Key::Escape {
+                                creating_wr.set(false);
+                            }
+                        },
+                    }
+                } else {
+                    button {
+                        class: "nav-item subtle",
+                        onclick: move |_| creating_wr.set(true),
+                        Icon { width: 16, height: 16, icon: LdPlus }
+                        "New war room"
+                    }
+                }
+
                 div { class: "sidebar-section", "Tools" }
                 Link { to: Route::NotesPage {}, class: "nav-item",
                     Icon { width: 16, height: 16, icon: LdStickyNote }
                     "Notes"
+                }
+                button {
+                    class: "nav-item subtle",
+                    onclick: move |_| show_repos.set(true),
+                    Icon { width: 16, height: 16, icon: LdFolderGit2 }
+                    "Repos"
                 }
             }
             div { class: "sidebar-footer",
@@ -133,6 +212,9 @@ pub fn Sidebar() -> Element {
         }
         if show_settings() {
             SettingsDialog { on_close: move |_| show_settings.set(false) }
+        }
+        if show_repos() {
+            ReposDialog { on_close: move |_| show_repos.set(false) }
         }
     }
 }
