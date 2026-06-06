@@ -148,6 +148,16 @@ input, textarea, select { font-family: inherit; }
 .tile.wide { grid-column: span 2; }
 /* Inside the hadrone grid each cell is sized absolutely; the tile fills it. */
 .grid-item .tile { height: 100%; min-height: 0; max-height: none; }
+/* hadrone puts a `transform` on every grid item, which would make position:fixed
+   overlays inside a tile (context menu, filter dropdowns, tooltips, detail panel,
+   dialogs) anchor to the tile instead of the viewport. Drop the transform on
+   idle tiles so overlays position correctly; keep it while dragging (the lib
+   sets data-active="true") for the lift effect. */
+.grid-item:not([data-active="true"]) { transform: none !important; }
+/* hadrone sets `contain: layout` on the container, which ALSO establishes a
+   containing block for fixed descendants — neutralize it so overlays anchor to
+   the viewport. */
+.hadrone-container { contain: none !important; }
 .tile-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
