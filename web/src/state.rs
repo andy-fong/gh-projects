@@ -18,12 +18,12 @@ const SETTINGS_KEY: &str = "gh-projects-global-settings";
 struct GlobalSettings {
     #[serde(default)]
     field_extractors: BTreeMap<String, String>,
+    #[serde(default)]
+    stage_emojis: BTreeMap<String, String>,
 }
 
-fn load_user_extractors() -> BTreeMap<String, String> {
-    LocalStorage::get::<GlobalSettings>(SETTINGS_KEY)
-        .map(|s| s.field_extractors)
-        .unwrap_or_default()
+fn load_settings() -> GlobalSettings {
+    LocalStorage::get::<GlobalSettings>(SETTINGS_KEY).unwrap_or_default()
 }
 
 #[derive(Clone, Copy)]
@@ -36,10 +36,13 @@ pub struct AppState {
     pub repos_ver: Signal<u32>,
     /// User-defined field extractors (NOT merged with defaults).
     pub user_extractors: Signal<BTreeMap<String, String>>,
+    /// User-defined Slack status emojis (NOT merged with defaults).
+    pub user_stage_emojis: Signal<BTreeMap<String, String>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
+        let settings = load_settings();
         Self {
             dashboards_ver: Signal::new(0),
             tiles_ver: Signal::new(0),
@@ -47,7 +50,8 @@ impl AppState {
             gh_ver: Signal::new(0),
             war_rooms_ver: Signal::new(0),
             repos_ver: Signal::new(0),
-            user_extractors: Signal::new(load_user_extractors()),
+            user_extractors: Signal::new(settings.field_extractors),
+            user_stage_emojis: Signal::new(settings.stage_emojis),
         }
     }
 
@@ -77,12 +81,30 @@ impl AppState {
         m
     }
 
-    pub fn set_user_extractors(mut self, next: BTreeMap<String, String>) {
+    /// Stage emojis: defaults merged with user overrides (user wins).
+    pub fn stage_emojis(&self) -> BTreeMap<String, String> {
+        let mut m = crate::war_room::default_stage_emojis();
+        m.extend(self.user_stage_emojis.read().clone());
+        m
+    }
+
+    /// Persist both settings maps together (they share one storage key).
+    fn persist(&self) {
         let settings = GlobalSettings {
-            field_extractors: next.clone(),
+            field_extractors: self.user_extractors.read().clone(),
+            stage_emojis: self.user_stage_emojis.read().clone(),
         };
         let _ = LocalStorage::set(SETTINGS_KEY, &settings);
+    }
+
+    pub fn set_user_extractors(mut self, next: BTreeMap<String, String>) {
         self.user_extractors.set(next);
+        self.persist();
+    }
+
+    pub fn set_user_stage_emojis(mut self, next: BTreeMap<String, String>) {
+        self.user_stage_emojis.set(next);
+        self.persist();
     }
 }
 

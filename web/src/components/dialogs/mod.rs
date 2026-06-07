@@ -6,3 +6,4 @@ pub mod repos_dialog;
 pub mod war_room_group_dialog;
 pub mod war_room_item_dialog;
 pub mod war_room_link_dialog;
+pub mod slack_update_dialog;

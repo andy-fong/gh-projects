@@ -19,8 +19,24 @@ A custom GitHub dashboard — tiles that each run a `gh` CLI command to fetch li
 - The `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
 - The Dioxus CLI (`dx`): `cargo binstall dioxus-cli` (or `cargo install dioxus-cli`)
 - `gh` CLI authenticated (`gh auth login`)
+- [`cargo-make`](https://github.com/sagiegurari/cargo-make) — `cargo install cargo-make` — for the `cargo make start` convenience task (optional; the manual steps work without it)
 
 ## Running
+
+### Quick start (`cargo make`)
+
+With [`cargo-make`](https://github.com/sagiegurari/cargo-make) installed
+(`cargo install cargo-make`), a single command builds the frontend bundle and
+starts the backend:
+
+```bash
+cargo make start
+```
+
+This runs the `build-frontend` task (`dx build --release -p gh-projects-web`)
+followed by `run-backend` (`cargo run -p gh-projects-backend`), then serves on
+**http://localhost:3001**. (Tasks are defined in `Makefile.toml`.) The manual
+two-step path below is equivalent if you'd rather not use `cargo-make`.
 
 ### 1. Build the frontend (WASM)
 
@@ -31,6 +47,13 @@ dx build --release -p gh-projects-web
 This compiles the Dioxus app to `target/dx/gh-projects-web/release/web/public/`.
 (On some macOS setups `wasm-opt` aborts; `dx` falls back to an unoptimized but
 fully working bundle — that's fine.)
+
+> **Rebuilding / changes not showing up?** `dx build` writes content-hashed
+> assets into the output directory but doesn't prune old ones, so they pile up
+> across builds. `index.html` itself isn't cache-busted, so after a rebuild your
+> browser may still load the previous bundle — **hard-refresh** (Cmd+Shift+R) to
+> pick up changes. To start from a clean bundle, delete the output directory
+> first: `rm -rf target/dx/gh-projects-web/release/web/public`.
 
 ### 2. Run the backend (serves the API **and** the frontend)
 
@@ -161,6 +184,52 @@ Each note has:
 - **Issue/PR number** — when set alongside a repo + ref type, an external link icon appears that opens the GitHub page directly
 
 You can embed a note in a dashboard as a **Note tile** — useful for pinning context, checklists, or investigation notes next to the relevant GH Query tiles.
+
+## War Rooms
+
+A **War Room** tracks a coordinated effort across several repos/releases. It's a
+list of **groups** (each bound to a repo from the global registry), and each
+group holds **items** (a release/PR/issue) with a manual lifecycle **stage**, a
+note, a checklist, and an optional GitHub link. Extra capabilities:
+
+- **Linked items** — mirror an item from another group; the mirror is read-only
+  and reflects the source's live status (edit the original once, see it
+  everywhere). Deleting the source removes its mirrors.
+- **Copy / paste** — drop an independent copy of an item into another group.
+- **Group rollup status** — each group header shows an overall status derived
+  from its items (blocked wins; all-complete shows the furthest stage; any
+  unstarted/in-flight work reads as *In progress*).
+- **Generate Slack update** — see below.
+
+### Slack status update
+
+The **Slack update** button in a war room generates a ready-to-paste status
+message. Groups that share a product prefix are nested under one header (e.g.
+`kgateway OSS v2.3.3` and `kgateway OSS v2.2.6` group under **kgateway OSS**,
+with `v2.3.3` / `v2.2.6` as release bullets and the items beneath each). Every
+release bullet's emoji is its group rollup status; linked items show their
+source group (`Envoy Releases / v1.37.4`). The dialog is editable before you
+copy, and an **Include item details** toggle drops the per-release item list for
+a headline-only view.
+
+### Status emojis (Settings → sidebar gear icon)
+
+The emoji used for each stage in the Slack update is configurable. Open
+**Settings** and edit the **Status emojis** section — one input per stage. Use
+your Slack workspace's emoji codes (e.g. `:white_check_mark:`). Defaults:
+
+| Stage | Default emoji |
+|---|---|
+| To do | `:white_circle:` |
+| In progress | `:waiting:` |
+| Blocked | `:red_circle:` |
+| Merged | `:large_blue_circle:` |
+| Released | `:white_check_mark:` |
+| Done | `:white_check_mark:` |
+
+This is a **global** setting (stored in the browser's local storage, alongside
+the field extractors), so it applies to every war room. Anything you don't
+override falls back to the default above.
 
 ## Project structure
 

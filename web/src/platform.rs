@@ -57,3 +57,11 @@ pub fn download_text(filename: &str, content: &str) {
     }
     let _ = web_sys::Url::revoke_object_url(&url);
 }
+
+/// Copy text to the system clipboard (best-effort; requires a secure context,
+/// which localhost satisfies). The returned Promise is fire-and-forget.
+pub fn copy_to_clipboard(text: &str) {
+    if let Some(win) = web_sys::window() {
+        let _ = win.navigator().clipboard().write_text(text);
+    }
+}

@@ -1,0 +1,19 @@
+[config]
+# Prevent cargo-make from iterating through every sub-crate folder
+default_to_workspace = false
+
+[tasks.build-frontend]
+description = "Builds the Dioxus web app in release mode"
+command = "dx"
+args = ["build", "--release", "-p", "gh-projects-web"]
+
+[tasks.run-backend]
+description = "Starts the backend service"
+command = "cargo"
+args = ["run", "-p", "gh-projects-backend"]
+dependencies = ["build-frontend"]
+
+[tasks.start]
+description = "Combined frontend build and backend execution"
+dependencies = ["run-backend"]
+

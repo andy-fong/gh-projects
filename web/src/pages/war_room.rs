@@ -1,14 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
-    LdChevronDown, LdChevronUp, LdClipboardPaste, LdCopy, LdExternalLink, LdLink, LdPencil, LdPlus,
-    LdTrash2,
+    LdChevronDown, LdChevronUp, LdClipboardPaste, LdCopy, LdExternalLink, LdLink, LdMessageSquare,
+    LdPencil, LdPlus, LdTrash2,
 };
 use dioxus_free_icons::Icon;
 
 use crate::api;
 use crate::components::common::Prose;
+use crate::components::dialogs::slack_update_dialog::SlackUpdateDialog;
 use crate::components::dialogs::war_room_group_dialog::WarRoomGroupDialog;
 use crate::components::dialogs::war_room_item_dialog::WarRoomItemDialog;
 use crate::components::dialogs::war_room_link_dialog::WarRoomLinkDialog;
@@ -19,6 +20,107 @@ use crate::types::{
 };
 use crate::war_room::{group_rollup_stage, github_url, stage_badge_class, stage_label};
 use crate::Route;
+
+/// Resolution map: item id -> (item, owning group's repo, owning group's name).
+type ItemIndex = HashMap<i64, (WarRoomItem, Option<String>, String)>;
+
+/// A mirror row's displayed stage/label come from its source item.
+fn effective_stage(item: &WarRoomItem, index: &ItemIndex) -> String {
+    match item.source_item_id.and_then(|sid| index.get(&sid)) {
+        Some((src, _, _)) => src.stage.clone(),
+        None => item.stage.clone(),
+    }
+}
+
+/// Label for the Slack update. A mirror row is prefixed with its source group
+/// (e.g. "Envoy Releases / v1.37.4") so linked items are unambiguous.
+fn slack_item_label(item: &WarRoomItem, index: &ItemIndex) -> String {
+    match item.source_item_id.and_then(|sid| index.get(&sid)) {
+        Some((src, _, gname)) => format!("{} / {}", gname, src.label),
+        None => item.label.clone(),
+    }
+}
+
+/// Split a group name into `(product, Some(version))` when it ends in a version
+/// token (e.g. "kgateway OSS v2.3.3" → ("kgateway OSS", "v2.3.3")). Groups with
+/// no trailing version (e.g. "Envoy Releases") return `(name, None)`.
+fn split_product_version(name: &str) -> (String, Option<String>) {
+    let trimmed = name.trim();
+    if let Some(pos) = trimmed.rfind(char::is_whitespace) {
+        let last = trimmed[pos + 1..].trim();
+        let looks_versioned = last
+            .strip_prefix('v')
+            .unwrap_or(last)
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_digit());
+        if looks_versioned {
+            return (trimmed[..pos].trim().to_string(), Some(last.to_string()));
+        }
+    }
+    (trimmed.to_string(), None)
+}
+
+/// Build a Slack-ready status update. Groups sharing a product prefix are nested
+/// under one header; each release is a bullet whose emoji is the group's rollup
+/// status, with its items as an indented sub-list. Groups with no version suffix
+/// list their items directly. When `include_details` is false, the per-release
+/// item sub-list is omitted (product + version headlines only).
+fn generate_slack_update(
+    room_name: &str,
+    groups: &[GroupWithItems],
+    index: &ItemIndex,
+    emojis: &BTreeMap<String, String>,
+    include_details: bool,
+) -> String {
+    let em = |stage: &str| emojis.get(stage).cloned().unwrap_or_default();
+    let mut out = format!("Here is the latest status on {room_name}:\n");
+    let mut last_header: Option<String> = None;
+
+    for gi in groups {
+        let stages: Vec<String> = gi.items.iter().map(|i| effective_stage(i, index)).collect();
+        let (product, version) = split_product_version(&gi.group.name);
+
+        match version {
+            Some(ver) => {
+                if last_header.as_deref() != Some(product.as_str()) {
+                    out.push_str(&format!("\n{product}:\n"));
+                    last_header = Some(product.clone());
+                }
+                let emoji = group_rollup_stage(&stages).map(|s| em(&s)).unwrap_or_default();
+                out.push_str(&format!("- {emoji} {ver}\n"));
+                // Items as an indented second-level list (skipped in summary mode).
+                if include_details {
+                    for i in &gi.items {
+                        let e = em(&effective_stage(i, index));
+                        let lbl = slack_item_label(i, index);
+                        let note = i.note.trim();
+                        if note.is_empty() {
+                            out.push_str(&format!("    - {e} {lbl}\n"));
+                        } else {
+                            out.push_str(&format!("    - {e} {lbl} ({note})\n"));
+                        }
+                    }
+                }
+            }
+            None => {
+                out.push_str(&format!("\n{}:\n", gi.group.name));
+                last_header = None;
+                for i in &gi.items {
+                    let emoji = em(&effective_stage(i, index));
+                    let lbl = slack_item_label(i, index);
+                    let note = i.note.trim();
+                    if note.is_empty() {
+                        out.push_str(&format!("- {emoji} {lbl}\n"));
+                    } else {
+                        out.push_str(&format!("- {emoji} {lbl} ({note})\n"));
+                    }
+                }
+            }
+        }
+    }
+    out
+}
 
 // ---- pure mappers (replace-style: carry the full record) ----
 
@@ -128,6 +230,7 @@ pub fn WarRoomPage(id: i64) -> Element {
     let mut confirm_delete = use_signal(|| false);
     let mut editing_links = use_signal(|| false);
     let mut links_value = use_signal(String::new);
+    let mut show_slack = use_signal(|| false);
 
     use_context_provider(|| WarCtx {
         state,
@@ -162,18 +265,16 @@ pub fn WarRoomPage(id: i64) -> Element {
     // Keep the id -> (item, group repo, group name) map current so mirror rows
     // can resolve and render their source's live data, and "depends on" badges
     // can show the dependency's title + status.
-    {
-        let map: HashMap<i64, (WarRoomItem, Option<String>, String)> = groups
-            .iter()
-            .flat_map(|g| {
-                g.items
-                    .iter()
-                    .map(|i| (i.id, (i.clone(), g.group.repo.clone(), g.group.name.clone())))
-            })
-            .collect();
-        if *items_by_id.peek() != map {
-            items_by_id.set(map);
-        }
+    let item_index: ItemIndex = groups
+        .iter()
+        .flat_map(|g| {
+            g.items
+                .iter()
+                .map(|i| (i.id, (i.clone(), g.group.repo.clone(), g.group.name.clone())))
+        })
+        .collect();
+    if *items_by_id.peek() != item_index {
+        items_by_id.set(item_index.clone());
     }
 
     // depends-on options for the item dialog, shown as "Group / Title".
@@ -345,6 +446,13 @@ pub fn WarRoomPage(id: i64) -> Element {
                         "Links"
                     }
                     button {
+                        class: "btn btn-sm",
+                        title: "Generate a Slack status update",
+                        onclick: move |_| show_slack.set(true),
+                        Icon { width: 16, height: 16, icon: LdMessageSquare }
+                        "Slack update"
+                    }
+                    button {
                         class: "btn btn-primary btn-sm",
                         onclick: move |_| group_dialog.clone().set(Some(None)),
                         Icon { width: 16, height: 16, icon: LdPlus }
@@ -508,6 +616,15 @@ pub fn WarRoomPage(id: i64) -> Element {
                     link_dialog.clone().set(None);
                 },
                 on_close: move |_| link_dialog.clone().set(None),
+            }
+        }
+
+        // ---- Slack update dialog ----
+        if show_slack() {
+            SlackUpdateDialog {
+                detailed: generate_slack_update(&room_name, &groups, &item_index, &state.stage_emojis(), true),
+                summary: generate_slack_update(&room_name, &groups, &item_index, &state.stage_emojis(), false),
+                on_close: move |_| show_slack.set(false),
             }
         }
     }

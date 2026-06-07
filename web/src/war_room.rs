@@ -1,6 +1,8 @@
 //! Shared helpers for the War Room feature: manual lifecycle stages and
 //! GitHub link building. (Live CI/merge status lands in phase 2.)
 
+use std::collections::BTreeMap;
+
 /// Manual lifecycle stages: `(key, label)`. Intentionally a small fixed set;
 /// the column is unconstrained in the DB so this can grow later.
 pub const STAGES: &[(&str, &str)] = &[
@@ -18,6 +20,23 @@ pub fn stage_label(stage: &str) -> String {
         .find(|(k, _)| *k == stage)
         .map(|(_, l)| l.to_string())
         .unwrap_or_else(|| stage.to_string())
+}
+
+/// Default Slack emoji per stage for the "generate Slack update" feature.
+/// Follows the convention from the user's release updates (✅ for shipped,
+/// :waiting: for in-flight work). Overridable in Settings.
+pub fn default_stage_emojis() -> BTreeMap<String, String> {
+    [
+        ("todo", ":white_circle:"),
+        ("in_progress", ":waiting:"),
+        ("blocked", ":red_circle:"),
+        ("merged", ":large_blue_circle:"),
+        ("released", ":white_check_mark:"),
+        ("done", ":white_check_mark:"),
+    ]
+    .iter()
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect()
 }
 
 /// Roll up a group's overall status from its items' stages:

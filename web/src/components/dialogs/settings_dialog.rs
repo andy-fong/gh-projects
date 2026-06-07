@@ -8,6 +8,7 @@ use crate::api;
 use crate::field_extractors::default_field_extractors;
 use crate::platform;
 use crate::state::use_app_state;
+use crate::war_room::STAGES;
 
 #[component]
 pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
@@ -16,6 +17,7 @@ pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
     let init_json = serde_json::to_string_pretty(&*state.user_extractors.read())
         .unwrap_or_else(|_| "{}".into());
     let mut extractors_json = use_signal(|| init_json.clone());
+    let mut stage_emojis = use_signal(|| state.stage_emojis());
     let mut json_error = use_signal(|| None::<String>);
     let mut exporting = use_signal(|| false);
     let mut restoring = use_signal(|| false);
@@ -29,6 +31,7 @@ pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
             Ok(Value::Object(_)) => match serde_json::from_str::<BTreeMap<String, String>>(&s) {
                 Ok(map) => {
                     state.set_user_extractors(map);
+                    state.set_user_stage_emojis(stage_emojis.read().clone());
                     json_error.set(None);
                     on_close.call(());
                 }
@@ -186,6 +189,25 @@ pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
                         }
                         p { class: "hint", "Built-in defaults (always applied unless overridden):" }
                         pre { class: "hint mono", "{defaults}" }
+                    }
+
+                    div { class: "field",
+                        label { "Status emojis — used in the Slack update for each stage" }
+                        for &(key , stage_label) in STAGES.iter() {
+                            div { class: "wr-repo-row",
+                                span { style: "flex:0 0 110px; color:var(--muted);", "{stage_label}" }
+                                input {
+                                    class: "input",
+                                    spellcheck: false,
+                                    placeholder: ":emoji:",
+                                    value: stage_emojis.read().get(key).cloned().unwrap_or_default(),
+                                    oninput: move |e| {
+                                        stage_emojis.write().insert(key.to_string(), e.value());
+                                    },
+                                }
+                            }
+                        }
+                        p { class: "hint", "Use your workspace's Slack emoji codes, e.g. :white_check_mark:" }
                     }
 
                     div { style: "border-top: 1px solid var(--border); padding-top: 16px;",
