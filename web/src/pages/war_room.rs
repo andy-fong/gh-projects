@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
     LdChevronDown, LdChevronUp, LdClipboardPaste, LdCopy, LdExternalLink, LdLink, LdMessageSquare,
-    LdPencil, LdPlus, LdTrash2,
+    LdPencil, LdPlus, LdStickyNote, LdTrash2,
 };
 use dioxus_free_icons::Icon;
 
@@ -434,7 +434,7 @@ pub fn WarRoomPage(id: i64) -> Element {
                     }
                     button {
                         class: "btn btn-sm",
-                        title: "Edit useful links",
+                        title: "Edit note",
                         onclick: {
                             let l = room.links.clone();
                             move |_| {
@@ -442,8 +442,8 @@ pub fn WarRoomPage(id: i64) -> Element {
                                 editing_links.set(true);
                             }
                         },
-                        Icon { width: 16, height: 16, icon: LdLink }
-                        "Links"
+                        Icon { width: 16, height: 16, icon: LdStickyNote }
+                        "Note"
                     }
                     button {
                         class: "btn btn-sm",
@@ -461,14 +461,14 @@ pub fn WarRoomPage(id: i64) -> Element {
                 }
             }
 
-            // Useful-links Markdown box — pinned at top when it has content.
+            // Markdown note box — pinned at top when it has content.
             if editing_links() {
                 div { class: "wr-links-edit",
                     textarea {
                         class: "textarea mono",
                         rows: 6,
                         autofocus: true,
-                        placeholder: "Useful links in Markdown — [Release tracker](https://…), runbooks, dashboards…",
+                        placeholder: "Note in Markdown — context, useful links, runbooks, dashboards…",
                         value: "{links_value}",
                         oninput: move |e| links_value.set(e.value()),
                     }
@@ -503,12 +503,12 @@ pub fn WarRoomPage(id: i64) -> Element {
                 div { class: "wr-links",
                     div { class: "wr-links-head",
                         span { class: "section-label",
-                            Icon { width: 14, height: 14, icon: LdLink }
-                            "Links"
+                            Icon { width: 14, height: 14, icon: LdStickyNote }
+                            "Note"
                         }
                         button {
                             class: "icon-btn",
-                            title: "Edit links",
+                            title: "Edit note",
                             onclick: {
                                 let l = room.links.clone();
                                 move |_| {
