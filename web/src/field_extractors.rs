@@ -9,9 +9,10 @@ use std::collections::BTreeMap;
 
 pub fn default_field_extractors() -> BTreeMap<String, String> {
     let mut m = BTreeMap::new();
-    m.insert("author".to_string(), "login".to_string());
-    m.insert("repository".to_string(), "nameWithOwner".to_string());
     m.insert("assignees".to_string(), "name|login".to_string());
+    m.insert("author".to_string(), "name|login".to_string());
+    m.insert("labels".to_string(), "name".to_string());
+    m.insert("repository".to_string(), "nameWithOwner".to_string());
     m
 }
 
@@ -76,15 +77,21 @@ pub fn is_datetime_string(s: &str) -> bool {
         return false;
     }
     let d = |i: usize| b[i].is_ascii_digit();
-    d(0) && d(1) && d(2) && d(3)
+    d(0) && d(1)
+        && d(2)
+        && d(3)
         && b[4] == b'-'
-        && d(5) && d(6)
+        && d(5)
+        && d(6)
         && b[7] == b'-'
-        && d(8) && d(9)
+        && d(8)
+        && d(9)
         && b[10] == b'T'
-        && d(11) && d(12)
+        && d(11)
+        && d(12)
         && b[13] == b':'
-        && d(14) && d(15)
+        && d(14)
+        && d(15)
 }
 
 /// `new Date(s).toLocaleDateString(undefined, { year, month: 'short', day })`.
@@ -92,11 +99,7 @@ pub fn is_datetime_string(s: &str) -> bool {
 pub fn format_date_only(s: &str) -> String {
     let date = js_sys::Date::new(&wasm_bindgen::JsValue::from_str(s));
     let opts = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(
-        &opts,
-        &"year".into(),
-        &"numeric".into(),
-    );
+    let _ = js_sys::Reflect::set(&opts, &"year".into(), &"numeric".into());
     let _ = js_sys::Reflect::set(&opts, &"month".into(), &"short".into());
     let _ = js_sys::Reflect::set(&opts, &"day".into(), &"numeric".into());
     let undefined = wasm_bindgen::JsValue::undefined();

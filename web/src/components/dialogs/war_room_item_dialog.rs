@@ -112,7 +112,7 @@ pub fn WarRoomItemDialog(
                                 value: "{stage}",
                                 onchange: move |e| stage.set(e.value()),
                                 for (k , l) in STAGES.iter() {
-                                    option { value: "{k}", "{l}" }
+                                    option { value: "{k}", selected: *k == stage.read().as_str(), "{l}" }
                                 }
                             }
                         }
@@ -122,10 +122,14 @@ pub fn WarRoomItemDialog(
                                 class: "select",
                                 value: "{depends_on}",
                                 onchange: move |e| depends_on.set(e.value()),
-                                option { value: "", "—" }
+                                option { value: "", selected: depends_on.read().is_empty(), "—" }
                                 for (sid , slabel) in siblings.iter() {
                                     if Some(*sid) != current_id {
-                                        option { value: "{sid}", "{slabel}" }
+                                        option {
+                                            value: "{sid}",
+                                            selected: sid.to_string() == *depends_on.read(),
+                                            "{slabel}"
+                                        }
                                     }
                                 }
                             }
@@ -139,9 +143,9 @@ pub fn WarRoomItemDialog(
                                 class: "select",
                                 value: "{ref_type}",
                                 onchange: move |e| ref_type.set(e.value()),
-                                option { value: "", "None" }
-                                option { value: "pr", "PR" }
-                                option { value: "issue", "Issue" }
+                                option { value: "", selected: ref_type.read().is_empty(), "None" }
+                                option { value: "pr", selected: *ref_type.read() == "pr", "PR" }
+                                option { value: "issue", selected: *ref_type.read() == "issue", "Issue" }
                             }
                         }
                         div {
