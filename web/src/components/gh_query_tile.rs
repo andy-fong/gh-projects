@@ -119,6 +119,57 @@ fn hidden_key(tile_id: i64) -> String {
     format!("gh-tile-hidden-{tile_id}")
 }
 
+fn colorder_key(tile_id: i64) -> String {
+    format!("gh-tile-colorder-{tile_id}")
+}
+
+/// Reorder `all_keys` to honour a persisted column order. Keys present in
+/// `order` come first (in that sequence); any keys not yet seen are appended
+/// in their original discovery order so new columns still show up.
+fn apply_col_order(all_keys: Vec<String>, order: &[String]) -> Vec<String> {
+    if order.is_empty() {
+        return all_keys;
+    }
+    let present: HashSet<&String> = all_keys.iter().collect();
+    let mut out: Vec<String> = order
+        .iter()
+        .filter(|k| present.contains(k))
+        .cloned()
+        .collect();
+    let ordered: HashSet<&String> = order.iter().collect();
+    for k in &all_keys {
+        if !ordered.contains(k) {
+            out.push(k.clone());
+        }
+    }
+    out
+}
+
+/// Move column `from` to the position of column `to` within the picker and
+/// persist the resulting order to localStorage.
+fn reorder_columns(
+    from: &str,
+    to: &str,
+    all_keys: &[String],
+    mut col_order: Signal<Vec<String>>,
+    tile_id: i64,
+) {
+    if from == to {
+        return;
+    }
+    let mut cur = all_keys.to_vec();
+    let (Some(fi), Some(ti)) = (
+        cur.iter().position(|k| k == from),
+        cur.iter().position(|k| k == to),
+    ) else {
+        return;
+    };
+    let item = cur.remove(fi);
+    cur.insert(ti, item);
+    platform::set_list(&colorder_key(tile_id), &cur);
+    col_order.set(cur);
+}
+
 fn ex_of<'a>(extractors: &'a BTreeMap<String, String>, k: &str) -> Option<&'a str> {
     extractors.get(k).map(|s| s.as_str())
 }
@@ -169,6 +220,9 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
     let mut hidden = use_signal(|| {
         platform::get_list(&hidden_key(tile_id)).unwrap_or_else(|| vec!["url".to_string()])
     });
+    let col_order = use_signal(|| platform::get_list(&colorder_key(tile_id)).unwrap_or_default());
+    let drag_col = use_signal(|| None::<String>);
+    let drag_over_col = use_signal(|| None::<String>);
     let mut show_col_picker = use_signal(|| false);
     let mut show_filters = use_signal(|| false);
     let mut filters = use_signal(HashMap::<String, Vec<String>>::new);
@@ -286,6 +340,7 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
         }
         keys
     };
+    let all_keys = apply_col_order(all_keys, &col_order.read());
     let hidden_set: HashSet<String> = hidden.read().iter().cloned().collect();
     let keys: Vec<String> = all_keys
         .iter()
@@ -443,14 +498,58 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
                 div {
                     class: "popover popover-menu",
                     style: "position:absolute; right:12px; top:40px; max-height:280px; overflow-y:auto; z-index:40;",
+                    div { class: "col-picker-hint", "Drag to reorder · check to show" }
                     for k in all_keys.clone() {
-                        label { key: "{k}", class: "checkbox-row",
-                            input {
-                                r#type: "checkbox",
-                                checked: !hidden_set.contains(&k),
-                                onclick: move |_| toggle_column(k.clone()),
+                        {
+                            let mut drag_col = drag_col;
+                            let mut drag_over_col = drag_over_col;
+                            let ak = all_keys.clone();
+                            let k_start = k.clone();
+                            let k_over = k.clone();
+                            let k_drop = k.clone();
+                            let k_toggle = k.clone();
+                            let is_over = drag_over_col.read().as_deref() == Some(k.as_str());
+                            let is_dragging = drag_col.read().as_deref() == Some(k.as_str());
+                            let mut cls = String::from("checkbox-row col-draggable");
+                            if is_over {
+                                cls.push_str(" col-drag-over");
                             }
-                            span { "{k}" }
+                            if is_dragging {
+                                cls.push_str(" col-dragging");
+                            }
+                            rsx! {
+                                div {
+                                    key: "{k}",
+                                    class: "{cls}",
+                                    draggable: true,
+                                    ondragstart: move |_| drag_col.set(Some(k_start.clone())),
+                                    ondragover: move |e: Event<DragData>| {
+                                        e.prevent_default();
+                                        drag_over_col.set(Some(k_over.clone()));
+                                    },
+                                    ondragend: move |_| {
+                                        drag_col.set(None);
+                                        drag_over_col.set(None);
+                                    },
+                                    ondrop: move |e: Event<DragData>| {
+                                        e.prevent_default();
+                                        drag_over_col.set(None);
+                                        if let Some(from) = drag_col.read().clone() {
+                                            reorder_columns(&from, &k_drop, &ak, col_order, tile_id);
+                                        }
+                                        drag_col.set(None);
+                                    },
+                                    span { class: "col-drag-handle",
+                                        Icon { width: 12, height: 12, icon: LdGripVertical }
+                                    }
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: !hidden_set.contains(&k),
+                                        onclick: move |_| toggle_column(k_toggle.clone()),
+                                    }
+                                    span { "{k}" }
+                                }
+                            }
                         }
                     }
                 }
