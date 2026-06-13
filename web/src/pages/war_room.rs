@@ -228,8 +228,8 @@ pub fn WarRoomPage(id: i64) -> Element {
     let mut renaming = use_signal(|| false);
     let mut rename_value = use_signal(String::new);
     let mut confirm_delete = use_signal(|| false);
-    let mut editing_links = use_signal(|| false);
-    let mut links_value = use_signal(String::new);
+    let mut editing_note = use_signal(|| false);
+    let mut note_value = use_signal(String::new);
     let mut show_slack = use_signal(|| false);
 
     use_context_provider(|| WarCtx {
@@ -436,10 +436,10 @@ pub fn WarRoomPage(id: i64) -> Element {
                         class: "btn btn-sm",
                         title: "Edit note",
                         onclick: {
-                            let l = room.links.clone();
+                            let l = room.notes.clone();
                             move |_| {
-                                links_value.set(l.clone());
-                                editing_links.set(true);
+                                note_value.set(l.clone());
+                                editing_note.set(true);
                             }
                         },
                         Icon { width: 16, height: 16, icon: LdStickyNote }
@@ -462,46 +462,46 @@ pub fn WarRoomPage(id: i64) -> Element {
             }
 
             // Markdown note box — pinned at top when it has content.
-            if editing_links() {
-                div { class: "wr-links-edit",
+            if editing_note() {
+                div { class: "wr-notes-edit",
                     textarea {
                         class: "textarea mono",
                         rows: 6,
                         autofocus: true,
                         placeholder: "Note in Markdown — context, useful links, runbooks, dashboards…",
-                        value: "{links_value}",
-                        oninput: move |e| links_value.set(e.value()),
+                        value: "{note_value}",
+                        oninput: move |e| note_value.set(e.value()),
                     }
                     div { class: "form-actions",
                         button {
                             class: "btn btn-ghost btn-sm",
-                            onclick: move |_| editing_links.set(false),
+                            onclick: move |_| editing_note.set(false),
                             "Cancel"
                         }
                         button {
                             class: "btn btn-primary btn-sm",
                             onclick: move |_| {
-                                let links = links_value.read().clone();
+                                let note = note_value.read().clone();
                                 spawn(async move {
                                     let _ = api::war_rooms::update(
                                             room_id,
                                             &UpdateWarRoomInput {
-                                                links: Some(links),
+                                                notes: Some(note),
                                                 ..Default::default()
                                             },
                                         )
                                         .await;
                                     state.invalidate_war_rooms();
                                 });
-                                editing_links.set(false);
+                                editing_note.set(false);
                             },
                             "Save"
                         }
                     }
                 }
-            } else if !room.links.trim().is_empty() {
-                div { class: "wr-links",
-                    div { class: "wr-links-head",
+            } else if !room.notes.trim().is_empty() {
+                div { class: "wr-notes",
+                    div { class: "wr-notes-head",
                         span { class: "section-label",
                             Icon { width: 14, height: 14, icon: LdStickyNote }
                             "Note"
@@ -510,17 +510,17 @@ pub fn WarRoomPage(id: i64) -> Element {
                             class: "icon-btn",
                             title: "Edit note",
                             onclick: {
-                                let l = room.links.clone();
+                                let l = room.notes.clone();
                                 move |_| {
-                                    links_value.set(l.clone());
-                                    editing_links.set(true);
+                                    note_value.set(l.clone());
+                                    editing_note.set(true);
                                 }
                             },
                             Icon { width: 14, height: 14, icon: LdPencil }
                         }
                     }
-                    div { class: "wr-links-body",
-                        Prose { text: room.links.clone(), blank_links: true }
+                    div { class: "wr-notes-body",
+                        Prose { text: room.notes.clone(), blank_links: true }
                     }
                 }
             }

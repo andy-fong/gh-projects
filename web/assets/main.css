@@ -880,14 +880,14 @@ select {
 }
 
 /* ---- War rooms ---- */
-.wr-links {
+.wr-notes {
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 8px;
     margin-bottom: 16px;
     overflow: hidden;
 }
-.wr-links-head {
+.wr-notes-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -895,23 +895,23 @@ select {
     border-bottom: 1px solid var(--border);
     background: var(--elevated);
 }
-.wr-links-head .section-label {
+.wr-notes-head .section-label {
     margin-bottom: 0;
     font-size: 16px;
     font-weight: 600;
     color: var(--text);
 }
-.wr-links-body {
+.wr-notes-body {
     padding: 10px 14px;
 }
-.wr-links-edit {
+.wr-notes-edit {
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 16px;
 }
-.wr-links-edit .textarea {
+.wr-notes-edit .textarea {
     width: 100%;
     margin-bottom: 8px;
 }

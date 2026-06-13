@@ -101,7 +101,7 @@ impl WarRoomRepository for SqliteWarRoomRepository {
         .bind(input.description.unwrap_or(existing.description))
         .bind(input.status.unwrap_or(existing.status))
         .bind(config)
-        .bind(input.links.unwrap_or(existing.links))
+        .bind(input.notes.unwrap_or(existing.notes))
         .bind(input.position.unwrap_or(existing.position))
         .bind(id)
         .fetch_optional(&self.pool)

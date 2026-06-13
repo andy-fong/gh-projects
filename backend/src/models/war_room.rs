@@ -9,7 +9,8 @@ pub struct WarRoom {
     pub description: String,
     pub status: String,
     pub config: String, // JSON
-    pub links: String,  // Markdown "useful links" box
+    #[sqlx(rename = "links")]
+    pub notes: String,  // Markdown notes box
     pub position: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -27,7 +28,7 @@ pub struct UpdateWarRoomInput {
     pub description: Option<String>,
     pub status: Option<String>,
     pub config: Option<serde_json::Value>,
-    pub links: Option<String>,
+    pub notes: Option<String>,
     pub position: Option<i64>,
 }
 

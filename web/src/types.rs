@@ -119,7 +119,7 @@ pub struct WarRoom {
     pub status: String,
     pub config: String,
     #[serde(default)]
-    pub links: String,
+    pub notes: String,
     pub position: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -202,7 +202,7 @@ pub struct UpdateWarRoomInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub links: Option<String>,
+    pub notes: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<i64>,
 }
