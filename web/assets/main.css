@@ -884,16 +884,25 @@ select {
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 10px 14px;
     margin-bottom: 16px;
+    overflow: hidden;
 }
 .wr-links-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--elevated);
 }
 .wr-links-head .section-label {
     margin-bottom: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+}
+.wr-links-body {
+    padding: 10px 14px;
 }
 .wr-links-edit {
     background: var(--panel-2);

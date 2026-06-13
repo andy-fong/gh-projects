@@ -519,7 +519,9 @@ pub fn WarRoomPage(id: i64) -> Element {
                             Icon { width: 14, height: 14, icon: LdPencil }
                         }
                     }
-                    Prose { text: room.links.clone(), blank_links: true }
+                    div { class: "wr-links-body",
+                        Prose { text: room.links.clone(), blank_links: true }
+                    }
                 }
             }
 
