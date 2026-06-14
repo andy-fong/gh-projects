@@ -12,6 +12,7 @@ A custom GitHub dashboard — tiles that each run a `gh` CLI command to fetch li
 - **Note tiles** — embed a private note directly on a dashboard
 - **Notes page** — full CRUD for private Markdown notes, optionally linked to a GitHub repo / issue / PR; one-click link to open the issue or PR on GitHub
 - **War Rooms** — a free-style tracker for coordinated efforts (e.g. patching a CVE across several repos/releases). A war room is a list of **groups** (each bound to a repo), and each group holds **items** (a release/PR/issue) with a manual lifecycle **stage**, a free-text note, a checklist of steps, and an optional GitHub PR/issue link. Items inherit their group's repo. Repos come from a reusable, global **registry** (sidebar → *Repos*) so the same repos can be selected across war rooms.
+- **Calendar** — a release calendar that visualises planned and actual ship dates across multiple components on a monthly grid. Each calendar dashboard has colour-coded **components** (e.g. products or services) and **events** (a version string tied to a planned release date). Events carry a **status badge** (On track · At risk · Delayed · Released) and an optional **actual release date**; a countdown badge shows days remaining until the planned date. Event notes render as Markdown below the release row.
 
 ## Prerequisites
 
@@ -231,6 +232,61 @@ This is a **global** setting (stored in the browser's local storage, alongside
 the field extractors), so it applies to every war room. Anything you don't
 override falls back to the default above.
 
+## Calendar
+
+A **Calendar dashboard** tracks planned and actual release dates for one or more
+components on a monthly grid. Create as many calendars as you like from the
+sidebar.
+
+### Components
+
+A **component** represents a product, service, or team whose releases you want
+to track (e.g. `Gateway`, `Control Plane`). Each component gets a colour that
+tints its pills on the calendar grid. An optional **short name** is shown on the
+calendar pill instead of the full name when space is tight.
+
+### Events
+
+An **event** is a single release entry with:
+
+| Field | Description |
+|---|---|
+| **Component** | Which component owns this release (optional) |
+| **Version** | Free-text version string, e.g. `v2.4.0` |
+| **Planned release date** | The target ship date |
+| **Actual release date** | Set this once the release ships; the pill on the calendar gets an outline to distinguish it |
+| **Status** | See below |
+| **Note** | Free-text Markdown; rendered below the event row in the sidebar list |
+
+### Status badges
+
+Each event has one of four statuses shown as a colour-coded badge on its row:
+
+| Status | Colour | Meaning |
+|---|---|---|
+| On track | Green | Release is on schedule |
+| At risk | Yellow | Some risk to the date |
+| Delayed | Red | Release will slip |
+| Released | Blue | Shipped; auto-assigned when the planned date is today or in the past |
+
+When you enter or change the planned date, the status flips automatically
+between *On track* and *Released* (skipping *At risk* / *Delayed* so manual
+risk flags are preserved).
+
+### Countdown badges
+
+Events without an actual release date show a countdown badge next to the date:
+
+- **today** — releases scheduled for today
+- **in Nd / Nw** — days or weeks until the planned date
+- **Nd ago** — overdue (past planned date, not yet released)
+
+### Calendar navigation
+
+The toolbar shows the current month with **‹** / **›** arrows to step forward
+and back. A **Today** button appears whenever you've navigated away from the
+current month and returns you to it instantly.
+
 ## Project structure
 
 ```
@@ -273,6 +329,12 @@ gh-projects/
 | PUT/DELETE | `/api/war-room-groups/:id` | Update / delete a group |
 | POST | `/api/war-room-groups/:id/items` | Create an item in a group |
 | PUT/DELETE | `/api/war-room-items/:id` | Update / delete an item |
+| GET/POST | `/api/calendars` | List / create calendar dashboards |
+| GET/PUT/DELETE | `/api/calendars/:id` | Get (with components + events) / update / delete a calendar |
+| POST | `/api/calendars/:id/components` | Create a component in a calendar |
+| PUT/DELETE | `/api/calendar-components/:id` | Update / delete a component |
+| POST | `/api/calendars/:id/events` | Create an event in a calendar |
+| PUT/DELETE | `/api/calendar-events/:id` | Update / delete an event |
 | POST | `/api/gh/execute` | Run a `gh` CLI command, returns JSON output (`cached: true` when served from disk) |
 | POST | `/api/cache/invalidate` | Mark all current cache entries as invalidated (writes a timestamp; no files are deleted) |
 | GET | `/api/cache/status` | Return current `cache_dir`, `ttl_secs`, and `invalidated_at` timestamp |
