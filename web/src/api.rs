@@ -214,6 +214,31 @@ pub mod backup {
     }
 }
 
+// ---- Release watches ----
+
+pub mod release_watches {
+    use super::*;
+
+    pub async fn list() -> Result<Vec<ReleaseWatch>, String> {
+        send_get("/api/release-watches").await
+    }
+
+    pub async fn create(input: &CreateReleaseWatchInput) -> Result<ReleaseWatch, String> {
+        send_json("POST", "/api/release-watches", input).await
+    }
+
+    pub async fn delete(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/release-watches/{id}")).await
+    }
+
+    pub async fn reorder(ids: &[i64]) -> Result<(), String> {
+        let _: serde_json::Value =
+            send_json("PUT", "/api/release-watches/reorder", &serde_json::json!({ "ids": ids }))
+                .await?;
+        Ok(())
+    }
+}
+
 // ---- Repo registry ----
 
 pub mod repos {

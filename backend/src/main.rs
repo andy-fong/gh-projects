@@ -8,7 +8,7 @@ mod state;
 
 use std::sync::Arc;
 use axum::{
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Router,
 };
 use tower_http::cors::{Any, CorsLayer};
@@ -23,6 +23,7 @@ use repositories::{
     tiles::SqliteTileRepository,
     row_order::SqliteRowOrderRepository,
     repos::SqliteRepoRepository,
+    release_watches::SqliteReleaseWatchRepository,
     war_rooms::SqliteWarRoomRepository,
 };
 use state::AppState;
@@ -45,6 +46,7 @@ async fn main() -> anyhow::Result<()> {
         tiles: Arc::new(SqliteTileRepository::new(pool.clone())),
         row_orders: Arc::new(SqliteRowOrderRepository::new(pool.clone())),
         repos: Arc::new(SqliteRepoRepository::new(pool.clone())),
+        release_watches: Arc::new(SqliteReleaseWatchRepository::new(pool.clone())),
         war_rooms: Arc::new(SqliteWarRoomRepository::new(pool.clone())),
         calendars: Arc::new(SqliteCalendarRepository::new(pool.clone())),
         cache_dir: config.cache_dir.clone(),
@@ -71,6 +73,10 @@ async fn main() -> anyhow::Result<()> {
         // Repo registry (reusable across war rooms)
         .route("/api/repos", get(handlers::repos::list_repos).post(handlers::repos::create_repo))
         .route("/api/repos/:id", put(handlers::repos::update_repo).delete(handlers::repos::delete_repo))
+        // Release watches (panel config)
+        .route("/api/release-watches", get(handlers::release_watches::list_release_watches).post(handlers::release_watches::create_release_watch))
+        .route("/api/release-watches/reorder", put(handlers::release_watches::reorder_release_watches))
+        .route("/api/release-watches/:id", delete(handlers::release_watches::delete_release_watch))
         // War rooms
         .route("/api/war-rooms", get(handlers::war_rooms::list_war_rooms).post(handlers::war_rooms::create_war_room))
         .route("/api/war-rooms/:id", get(handlers::war_rooms::get_war_room).put(handlers::war_rooms::update_war_room).delete(handlers::war_rooms::delete_war_room))

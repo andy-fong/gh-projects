@@ -10,6 +10,7 @@ mod state;
 mod types;
 mod war_room;
 
+use components::releases_panel::ReleasesPanel;
 use components::sidebar::Sidebar;
 use pages::calendar::CalendarPage;
 use pages::dashboard::DashboardPage;
@@ -73,14 +74,18 @@ fn App() -> Element {
     }
 }
 
-/// Top-level layout: sidebar + routed page content.
+/// Top-level layout: sidebar + routed page content + optional releases panel.
 #[component]
 fn Shell() -> Element {
+    let mut show_releases = use_signal(|| false);
     rsx! {
         div { class: "app",
-            Sidebar {}
+            Sidebar { on_toggle_releases: move |_| show_releases.set(!show_releases()) }
             main { class: "main",
                 Outlet::<Route> {}
+            }
+            if show_releases() {
+                ReleasesPanel { on_close: move |_| show_releases.set(false) }
             }
         }
     }

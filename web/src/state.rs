@@ -34,6 +34,7 @@ pub struct AppState {
     pub gh_ver: Signal<u32>,
     pub war_rooms_ver: Signal<u32>,
     pub repos_ver: Signal<u32>,
+    pub release_watches_ver: Signal<u32>,
     pub calendars_ver: Signal<u32>,
     /// User-defined field extractors (NOT merged with defaults).
     pub user_extractors: Signal<BTreeMap<String, String>>,
@@ -51,6 +52,7 @@ impl AppState {
             gh_ver: Signal::new(0),
             war_rooms_ver: Signal::new(0),
             repos_ver: Signal::new(0),
+            release_watches_ver: Signal::new(0),
             calendars_ver: Signal::new(0),
             user_extractors: Signal::new(settings.field_extractors),
             user_stage_emojis: Signal::new(settings.stage_emojis),
@@ -74,6 +76,9 @@ impl AppState {
     }
     pub fn invalidate_repos(mut self) {
         *self.repos_ver.write() += 1;
+    }
+    pub fn invalidate_release_watches(mut self) {
+        *self.release_watches_ver.write() += 1;
     }
     pub fn invalidate_calendars(mut self) {
         *self.calendars_ver.write() += 1;

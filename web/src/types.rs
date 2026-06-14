@@ -84,6 +84,22 @@ pub struct NoteConfig {
 // ---- Repo registry (reusable across war rooms) ----
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct ReleaseWatch {
+    pub id: i64,
+    pub repo_id: i64,
+    pub limit_count: i64,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct CreateReleaseWatchInput {
+    pub repo_id: i64,
+    pub limit_count: i64,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub struct Repo {
     pub id: i64,
     pub name: String,

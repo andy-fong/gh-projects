@@ -3,6 +3,7 @@ pub mod dashboards;
 pub mod tiles;
 pub mod row_order;
 pub mod repos;
+pub mod release_watches;
 pub mod war_rooms;
 pub mod calendars;
 
@@ -11,5 +12,6 @@ pub use dashboards::DashboardRepository;
 pub use tiles::TileRepository;
 pub use row_order::RowOrderRepository;
 pub use repos::RepoRepository;
+pub use release_watches::ReleaseWatchRepository;
 pub use war_rooms::WarRoomRepository;
 pub use calendars::CalendarRepository;

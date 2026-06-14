@@ -9,6 +9,7 @@ use crate::{
         calendar::{CreateCalendarComponentInput, CreateCalendarDashboardInput, CreateCalendarEventInput},
         dashboard::CreateDashboardInput,
         note::CreateNoteInput,
+        release_watch::CreateReleaseWatchInput,
         tile::CreateTileInput,
         war_room::{ChecklistItem, CreateGroupInput, CreateItemInput, CreateWarRoomInput, UpdateWarRoomInput},
     },
@@ -110,6 +111,14 @@ pub struct BackupCalendar {
     pub events: Vec<BackupCalendarEvent>,
 }
 
+// ── Release watches ───────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize)]
+pub struct BackupReleaseWatch {
+    pub repo_id: i64,
+    pub limit_count: i64,
+}
+
 // ── Top-level export / import ─────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -120,6 +129,7 @@ pub struct BackupExport {
     pub notes: Vec<BackupNote>,
     pub war_rooms: Vec<BackupWarRoom>,
     pub calendars: Vec<BackupCalendar>,
+    pub release_watches: Vec<BackupReleaseWatch>,
 }
 
 #[derive(Deserialize)]
@@ -130,6 +140,8 @@ pub struct BackupImport {
     pub war_rooms: Vec<BackupWarRoom>,
     #[serde(default)]
     pub calendars: Vec<BackupCalendar>,
+    #[serde(default)]
+    pub release_watches: Vec<BackupReleaseWatch>,
 }
 
 // ── Restore result ────────────────────────────────────────────────────────────
@@ -263,6 +275,17 @@ pub async fn export_backup(
         });
     }
 
+    let backup_release_watches = state
+        .release_watches
+        .list()
+        .await?
+        .into_iter()
+        .map(|w| BackupReleaseWatch {
+            repo_id: w.repo_id,
+            limit_count: w.limit_count,
+        })
+        .collect();
+
     Ok(Json(BackupExport {
         version: 2,
         exported_at: Utc::now().to_rfc3339(),
@@ -270,6 +293,7 @@ pub async fn export_backup(
         notes: backup_notes,
         war_rooms: backup_war_rooms,
         calendars: backup_calendars,
+        release_watches: backup_release_watches,
     }))
 }
 
@@ -282,6 +306,7 @@ pub async fn restore_backup(
     state.notes.delete_all().await?;
     state.war_rooms.delete_all().await?;
     state.calendars.delete_all().await?;
+    state.release_watches.delete_all().await?;
 
     let mut result = RestoreResult { dashboards: Vec::new() };
 
@@ -468,6 +493,17 @@ pub async fn restore_backup(
                 )
                 .await?;
         }
+    }
+
+    // Restore release watches (position is implicit from order)
+    for w in input.release_watches {
+        state
+            .release_watches
+            .create(CreateReleaseWatchInput {
+                repo_id: w.repo_id,
+                limit_count: w.limit_count,
+            })
+            .await?;
     }
 
     Ok(Json(result))

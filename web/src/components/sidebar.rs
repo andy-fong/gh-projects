@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
     LdCalendar, LdFolderGit2, LdGithub, LdLayoutDashboard, LdPlus, LdRefreshCcw, LdSettings,
-    LdSiren, LdStickyNote,
+    LdSiren, LdStickyNote, LdTag,
 };
 use dioxus_free_icons::Icon;
 
@@ -13,7 +13,7 @@ use crate::types::{CreateCalendarDashboardInput, CreateDashboardInput, CreateWar
 use crate::Route;
 
 #[component]
-pub fn Sidebar() -> Element {
+pub fn Sidebar(on_toggle_releases: EventHandler<()>) -> Element {
     let state = use_app_state();
     let route = use_route::<Route>();
     let active_id = match route {
@@ -259,6 +259,12 @@ pub fn Sidebar() -> Element {
                 }
             }
             div { class: "sidebar-footer",
+                button {
+                    class: "nav-item subtle",
+                    onclick: move |_| on_toggle_releases.call(()),
+                    Icon { width: 16, height: 16, icon: LdTag }
+                    "Releases"
+                }
                 button {
                     class: "nav-item subtle",
                     disabled: invalidating(),
