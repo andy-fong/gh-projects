@@ -53,6 +53,8 @@ pub trait CalendarRepository: Send + Sync {
         input: UpdateCalendarEventInput,
     ) -> Result<Option<CalendarEvent>, AppError>;
     async fn delete_event(&self, id: i64) -> Result<bool, AppError>;
+
+    async fn delete_all(&self) -> Result<(), AppError>;
 }
 
 pub struct SqliteCalendarRepository {
@@ -276,5 +278,12 @@ impl CalendarRepository for SqliteCalendarRepository {
             .await?
             .rows_affected()
             > 0)
+    }
+
+    async fn delete_all(&self) -> Result<(), AppError> {
+        sqlx::query("DELETE FROM calendar_dashboards")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 }

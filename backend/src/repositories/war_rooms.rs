@@ -28,6 +28,8 @@ pub trait WarRoomRepository: Send + Sync {
     async fn create_item(&self, group_id: i64, input: CreateItemInput) -> Result<WarRoomItem, AppError>;
     async fn update_item(&self, id: i64, input: UpdateItemInput) -> Result<Option<WarRoomItem>, AppError>;
     async fn delete_item(&self, id: i64) -> Result<bool, AppError>;
+
+    async fn delete_all(&self) -> Result<(), AppError>;
 }
 
 pub struct SqliteWarRoomRepository {
@@ -245,5 +247,12 @@ impl WarRoomRepository for SqliteWarRoomRepository {
             .await?
             .rows_affected()
             > 0)
+    }
+
+    async fn delete_all(&self) -> Result<(), AppError> {
+        sqlx::query("DELETE FROM war_rooms")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 }
