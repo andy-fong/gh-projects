@@ -6,3 +6,4 @@ pub mod backup;
 pub mod row_order;
 pub mod repos;
 pub mod war_rooms;
+pub mod calendars;

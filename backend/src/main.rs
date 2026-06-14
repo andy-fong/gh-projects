@@ -17,6 +17,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use config::Config;
 use repositories::{
+    calendars::SqliteCalendarRepository,
     dashboards::SqliteDashboardRepository,
     notes::SqliteNoteRepository,
     tiles::SqliteTileRepository,
@@ -45,6 +46,7 @@ async fn main() -> anyhow::Result<()> {
         row_orders: Arc::new(SqliteRowOrderRepository::new(pool.clone())),
         repos: Arc::new(SqliteRepoRepository::new(pool.clone())),
         war_rooms: Arc::new(SqliteWarRoomRepository::new(pool.clone())),
+        calendars: Arc::new(SqliteCalendarRepository::new(pool.clone())),
         cache_dir: config.cache_dir.clone(),
         cache_ttl_secs: config.cache_ttl_secs,
     };
@@ -76,6 +78,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/war-room-groups/:id", put(handlers::war_rooms::update_group).delete(handlers::war_rooms::delete_group))
         .route("/api/war-room-groups/:id/items", post(handlers::war_rooms::create_item))
         .route("/api/war-room-items/:id", put(handlers::war_rooms::update_item).delete(handlers::war_rooms::delete_item))
+        // Calendar dashboards
+        .route("/api/calendars", get(handlers::calendars::list_calendars).post(handlers::calendars::create_calendar))
+        .route("/api/calendars/:id", get(handlers::calendars::get_calendar).put(handlers::calendars::update_calendar).delete(handlers::calendars::delete_calendar))
+        .route("/api/calendars/:id/components", post(handlers::calendars::create_component))
+        .route("/api/calendar-components/:id", put(handlers::calendars::update_component).delete(handlers::calendars::delete_component))
+        .route("/api/calendars/:id/events", post(handlers::calendars::create_event))
+        .route("/api/calendar-events/:id", put(handlers::calendars::update_event).delete(handlers::calendars::delete_event))
         // GH CLI
         .route("/api/gh/execute", post(handlers::gh::execute_gh))
         // Cache

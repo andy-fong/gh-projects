@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
-    LdFolderGit2, LdGithub, LdLayoutDashboard, LdPlus, LdRefreshCcw, LdSettings, LdSiren,
-    LdStickyNote,
+    LdCalendar, LdFolderGit2, LdGithub, LdLayoutDashboard, LdPlus, LdRefreshCcw, LdSettings,
+    LdSiren, LdStickyNote,
 };
 use dioxus_free_icons::Icon;
 
@@ -9,7 +9,7 @@ use crate::api;
 use crate::components::dialogs::repos_dialog::ReposDialog;
 use crate::components::dialogs::settings_dialog::SettingsDialog;
 use crate::state::use_app_state;
-use crate::types::{CreateDashboardInput, CreateWarRoomInput};
+use crate::types::{CreateCalendarDashboardInput, CreateDashboardInput, CreateWarRoomInput};
 use crate::Route;
 
 #[component]
@@ -24,6 +24,10 @@ pub fn Sidebar() -> Element {
         Route::WarRoomPage { id } => Some(id),
         _ => None,
     };
+    let active_cal = match route {
+        Route::CalendarPage { id } => Some(id),
+        _ => None,
+    };
 
     let dashboards = use_resource(move || {
         let _ = state.dashboards_ver.read(); // subscribe → refetch on invalidate
@@ -33,11 +37,17 @@ pub fn Sidebar() -> Element {
         let _ = state.war_rooms_ver.read();
         async move { api::war_rooms::list().await }
     });
+    let calendars = use_resource(move || {
+        let _ = state.calendars_ver.read();
+        async move { api::calendars::list().await }
+    });
 
     let mut creating = use_signal(|| false);
     let mut new_name = use_signal(String::new);
     let mut creating_wr = use_signal(|| false);
     let mut new_wr_name = use_signal(String::new);
+    let mut creating_cal = use_signal(|| false);
+    let mut new_cal_name = use_signal(String::new);
     let mut invalidating = use_signal(|| false);
     let mut show_settings = use_signal(|| false);
     let mut show_repos = use_signal(|| false);
@@ -91,11 +101,32 @@ pub fn Sidebar() -> Element {
         });
     };
 
+    let submit_create_cal = move |_| {
+        let name = new_cal_name.read().trim().to_string();
+        if name.is_empty() {
+            return;
+        }
+        spawn(async move {
+            if api::calendars::create(&CreateCalendarDashboardInput { name, description: None })
+                .await
+                .is_ok()
+            {
+                new_cal_name.set(String::new());
+                creating_cal.set(false);
+                state.invalidate_calendars();
+            }
+        });
+    };
+
     let items = match dashboards.read().as_ref() {
         Some(Ok(v)) => v.clone(),
         _ => Vec::new(),
     };
     let wr_items = match war_rooms.read().as_ref() {
+        Some(Ok(v)) => v.clone(),
+        _ => Vec::new(),
+    };
+    let cal_items = match calendars.read().as_ref() {
         Some(Ok(v)) => v.clone(),
         _ => Vec::new(),
     };
@@ -176,6 +207,42 @@ pub fn Sidebar() -> Element {
                         onclick: move |_| creating_wr.set(true),
                         Icon { width: 16, height: 16, icon: LdPlus }
                         "New war room"
+                    }
+                }
+
+                div { class: "sidebar-section", "Calendar" }
+                for c in cal_items {
+                    Link {
+                        key: "{c.id}",
+                        to: Route::CalendarPage { id: c.id },
+                        class: if active_cal == Some(c.id) { "nav-item active" } else { "nav-item" },
+                        Icon { width: 16, height: 16, icon: LdCalendar }
+                        "{c.name}"
+                    }
+                }
+                if creating_cal() {
+                    input {
+                        class: "input",
+                        style: "margin-top:4px;",
+                        autofocus: true,
+                        placeholder: "Calendar name…",
+                        value: "{new_cal_name}",
+                        oninput: move |e| new_cal_name.set(e.value()),
+                        onblur: move |_| creating_cal.set(false),
+                        onkeydown: move |e| {
+                            if e.key() == Key::Enter {
+                                submit_create_cal(());
+                            } else if e.key() == Key::Escape {
+                                creating_cal.set(false);
+                            }
+                        },
+                    }
+                } else {
+                    button {
+                        class: "nav-item subtle",
+                        onclick: move |_| creating_cal.set(true),
+                        Icon { width: 16, height: 16, icon: LdPlus }
+                        "New calendar"
                     }
                 }
 

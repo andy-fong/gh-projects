@@ -291,6 +291,59 @@ pub mod war_rooms {
     }
 }
 
+// ---- Calendar dashboards ----
+
+pub mod calendars {
+    use super::*;
+
+    pub async fn list() -> Result<Vec<CalendarDashboard>, String> {
+        send_get("/api/calendars").await
+    }
+
+    pub async fn get(id: i64) -> Result<CalendarDashboardDetail, String> {
+        send_get(&format!("/api/calendars/{id}")).await
+    }
+
+    pub async fn create(input: &CreateCalendarDashboardInput) -> Result<CalendarDashboard, String> {
+        send_json("POST", "/api/calendars", input).await
+    }
+
+    pub async fn update(id: i64, input: &UpdateCalendarDashboardInput) -> Result<CalendarDashboard, String> {
+        send_json("PUT", &format!("/api/calendars/{id}"), input).await
+    }
+
+    #[allow(dead_code)]
+    pub async fn delete(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/calendars/{id}")).await
+    }
+
+    // Components
+    pub async fn create_component(calendar_id: i64, input: &CreateCalendarComponentInput) -> Result<CalendarComponent, String> {
+        send_json("POST", &format!("/api/calendars/{calendar_id}/components"), input).await
+    }
+
+    pub async fn update_component(id: i64, input: &UpdateCalendarComponentInput) -> Result<CalendarComponent, String> {
+        send_json("PUT", &format!("/api/calendar-components/{id}"), input).await
+    }
+
+    pub async fn delete_component(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/calendar-components/{id}")).await
+    }
+
+    // Events
+    pub async fn create_event(calendar_id: i64, input: &CreateCalendarEventInput) -> Result<CalendarEvent, String> {
+        send_json("POST", &format!("/api/calendars/{calendar_id}/events"), input).await
+    }
+
+    pub async fn update_event(id: i64, input: &UpdateCalendarEventInput) -> Result<CalendarEvent, String> {
+        send_json("PUT", &format!("/api/calendar-events/{id}"), input).await
+    }
+
+    pub async fn delete_event(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/calendar-events/{id}")).await
+    }
+}
+
 // ---- Row order ----
 
 pub mod row_order {

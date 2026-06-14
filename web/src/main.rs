@@ -11,6 +11,7 @@ mod types;
 mod war_room;
 
 use components::sidebar::Sidebar;
+use pages::calendar::CalendarPage;
 use pages::dashboard::DashboardPage;
 use pages::home::Home;
 use pages::notes::NotesPage;
@@ -29,6 +30,8 @@ pub enum Route {
     DashboardPage { id: i64 },
     #[route("/war-rooms/:id")]
     WarRoomPage { id: i64 },
+    #[route("/calendars/:id")]
+    CalendarPage { id: i64 },
     #[route("/notes")]
     NotesPage {},
 }

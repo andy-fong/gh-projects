@@ -1070,3 +1070,459 @@ select {
     background: #238636;
     color: #fff;
 }
+
+/* ---- Calendar Dashboard ---- */
+
+.cal-page {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.page-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 3-month strip */
+.cal-strip-wrapper {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.cal-nav-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    padding: 6px 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 30px; /* vertically center with month grid area */
+}
+.cal-nav-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+    background: var(--panel);
+}
+
+.cal-today-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.cal-today-btn:hover {
+    background: var(--panel);
+    border-color: var(--accent);
+}
+
+.cal-months-strip {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+    overflow: hidden;
+    align-items: flex-start;
+}
+
+/* Individual month calendar */
+.month-cal {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px;
+    opacity: 0.65;
+    min-width: 0;
+}
+.month-cal.center {
+    flex: 1.7;
+    opacity: 1;
+    border-color: var(--accent);
+    background: var(--panel-2);
+}
+
+.month-cal-header {
+    margin-bottom: 8px;
+    text-align: center;
+}
+.month-cal-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+}
+
+.month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+}
+
+.month-dow {
+    font-size: 9px;
+    color: var(--muted-dim);
+    text-align: center;
+    padding: 2px 0 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.month-day-empty {
+    min-height: 24px;
+}
+
+.month-day {
+    min-height: 24px;
+    padding: 1px 2px 2px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.month-cal.center .month-day {
+    min-height: 40px;
+    padding: 2px 3px 3px;
+}
+.month-day:hover {
+    background: var(--elevated);
+}
+
+.month-day-num {
+    font-size: 9px;
+    color: var(--muted-dim);
+    display: block;
+    text-align: right;
+    line-height: 1.4;
+}
+.month-cal.center .month-day-num {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.today-circle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    float: right;
+}
+
+.month-day-events {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-top: 1px;
+}
+
+.cal-event-pill {
+    border-radius: 2px;
+    height: 5px;
+    cursor: pointer;
+    transition: opacity 0.1s;
+}
+.cal-event-pill:hover {
+    opacity: 0.8;
+}
+.cal-event-pill.selected {
+    outline: 1px solid white;
+    outline-offset: 1px;
+}
+/* Planned pill when an actual date has been recorded — faded to indicate superseded */
+.cal-event-pill.planned-done {
+    opacity: 0.45;
+}
+.cal-event-pill.planned-done.selected {
+    opacity: 0.7;
+}
+/* Actual (confirmed) release pill — slightly brighter border to distinguish */
+.cal-event-pill.actual {
+    outline: 1px solid rgba(255, 255, 255, 0.45);
+    outline-offset: 0px;
+}
+.month-cal.center .cal-event-pill {
+    height: auto;
+    display: flex;
+    align-items: center;
+    padding: 2px 4px;
+    border-radius: 3px;
+    gap: 3px;
+    min-height: 16px;
+}
+.cal-event-label {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+
+/* Body: components + events */
+.cal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Component filter chips */
+.component-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.component-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px 4px 6px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+    transition: border-color 0.15s;
+    user-select: none;
+}
+.component-chip:hover {
+    background: var(--elevated);
+}
+.component-chip.active {
+    background: var(--elevated);
+}
+
+.chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.chip-action-btn {
+    background: none;
+    border: none;
+    color: var(--muted-dim);
+    padding: 1px 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    border-radius: 3px;
+    opacity: 0;
+    margin-left: 1px;
+}
+.component-chip:hover .chip-action-btn {
+    opacity: 1;
+}
+.chip-action-btn:hover {
+    color: var(--text);
+    background: var(--border);
+}
+
+/* Events list */
+.cal-events-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.cal-events-title {
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.event-row {
+    display: flex;
+    flex-direction: column;
+    padding: 7px 10px;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.1s;
+    gap: 4px;
+}
+.event-row:hover {
+    background: var(--panel);
+}
+.event-row.selected {
+    background: var(--panel);
+    border-color: var(--accent);
+}
+.event-row-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.event-comp {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 130px;
+}
+.event-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.event-comp-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.event-version {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    min-width: 70px;
+}
+.event-dates {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 90px;
+}
+.event-date {
+    font-size: 12px;
+}
+.event-date-actual {
+    font-size: 11px;
+    color: #3fb950;
+    font-weight: 500;
+}
+.countdown-badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.countdown-today  { background: color-mix(in srgb, #39c5cf 18%, transparent); color: #39c5cf; }
+.countdown-soon   { background: color-mix(in srgb, #d29922 18%, transparent); color: #d29922; }
+.countdown-future { background: color-mix(in srgb, var(--muted) 12%, transparent); color: var(--muted); }
+.countdown-overdue { background: color-mix(in srgb, #f85149 18%, transparent); color: #f85149; }
+
+/* Release status badge */
+.status-badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 1px 7px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.status-on-track { background: color-mix(in srgb, #3fb950 18%, transparent); color: #3fb950; }
+.status-at-risk  { background: color-mix(in srgb, #d29922 18%, transparent); color: #d29922; }
+.status-delayed  { background: color-mix(in srgb, #f85149 18%, transparent); color: #f85149; }
+.status-released { background: color-mix(in srgb, #2f81f7 18%, transparent); color: #2f81f7; }
+
+/* Status picker in release dialog */
+.status-picker {
+    display: flex;
+    gap: 6px;
+}
+.status-btn {
+    flex: 1;
+    padding: 5px 0;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.status-btn.status-on-track.active { background: color-mix(in srgb, #3fb950 18%, transparent); border-color: #3fb950; color: #3fb950; }
+.status-btn.status-at-risk.active  { background: color-mix(in srgb, #d29922 18%, transparent); border-color: #d29922; color: #d29922; }
+.status-btn.status-delayed.active  { background: color-mix(in srgb, #f85149 18%, transparent); border-color: #f85149; color: #f85149; }
+.status-btn.status-released.active { background: color-mix(in srgb, #2f81f7 18%, transparent); border-color: #2f81f7; color: #2f81f7; }
+.status-btn:not(.active):hover { background: var(--panel); color: var(--text); }
+.event-note-md {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.55;
+    padding-left: 14px;
+}
+.event-note-md p { margin: 0 0 4px 0; }
+.event-note-md p:last-child { margin-bottom: 0; }
+.event-note-md ul, .event-note-md ol { margin: 2px 0 4px 0; padding-left: 18px; }
+.event-note-md li { margin-bottom: 2px; }
+.event-note-md code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    background: var(--elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+.event-note-md strong { color: var(--text); font-weight: 600; }
+.event-note-md a { color: var(--accent); }
+.event-actions {
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+    opacity: 0;
+    flex-shrink: 0;
+}
+.event-row:hover .event-actions {
+    opacity: 1;
+}
+.event-row-main .event-actions {
+    margin-left: auto;
+}
+
+/* Color picker presets in component dialog */
+.color-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+}
+.color-preset {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.1s;
+}
+.color-preset:hover {
+    transform: scale(1.15);
+    border-color: var(--muted);
+}
+.color-preset.active {
+    border-color: white;
+    transform: scale(1.1);
+}
+.color-input {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 50%;
+}

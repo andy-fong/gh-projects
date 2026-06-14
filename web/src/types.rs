@@ -312,6 +312,117 @@ pub struct UpdateTileInput {
     pub layout: Option<TileLayout>,
 }
 
+// ---- Calendar dashboards ----
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct CalendarDashboard {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct CalendarComponent {
+    pub id: i64,
+    pub calendar_id: i64,
+    pub name: String,
+    pub short_name: Option<String>,
+    pub color: String,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct CalendarEvent {
+    pub id: i64,
+    pub calendar_id: i64,
+    pub component_id: Option<i64>,
+    pub version: String,
+    pub status: String,                // "on_track" | "at_risk" | "delayed"
+    pub release_date: String,          // YYYY-MM-DD planned
+    pub actual_release_date: Option<String>, // YYYY-MM-DD actual
+    pub note: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize)]
+pub struct CalendarDashboardDetail {
+    #[serde(flatten)]
+    pub dashboard: CalendarDashboard,
+    pub components: Vec<CalendarComponent>,
+    pub events: Vec<CalendarEvent>,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct CreateCalendarDashboardInput {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct UpdateCalendarDashboardInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<i64>,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct CreateCalendarComponentInput {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub short_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct UpdateCalendarComponentInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub short_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<i64>,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct CreateCalendarEventInput {
+    pub component_id: Option<i64>,
+    pub version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    pub release_date: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actual_release_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct UpdateCalendarEventInput {
+    /// Replace-style: None clears the association
+    pub component_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_date: Option<String>,
+    pub actual_release_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
 // ---- Response payloads ----
 
 #[derive(Clone, Debug, Deserialize)]
