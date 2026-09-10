@@ -28,6 +28,16 @@ pub trait WarRoomRepository: Send + Sync {
     async fn create_item(&self, group_id: i64, input: CreateItemInput) -> Result<WarRoomItem, AppError>;
     async fn update_item(&self, id: i64, input: UpdateItemInput) -> Result<Option<WarRoomItem>, AppError>;
     async fn delete_item(&self, id: i64) -> Result<bool, AppError>;
+    /// Set an item's cross-item links directly. Restore needs this as a second
+    /// pass: `depends_on` and `source_item_id` can point at items in another
+    /// group or another war room, so the targets don't exist until every item
+    /// has been created.
+    async fn relink_item(
+        &self,
+        id: i64,
+        depends_on: Option<i64>,
+        source_item_id: Option<i64>,
+    ) -> Result<(), AppError>;
 
     async fn delete_all(&self) -> Result<(), AppError>;
 }
@@ -238,6 +248,25 @@ impl WarRoomRepository for SqliteWarRoomRepository {
         .bind(id)
         .fetch_optional(&self.pool)
         .await?)
+    }
+
+    async fn relink_item(
+        &self,
+        id: i64,
+        depends_on: Option<i64>,
+        source_item_id: Option<i64>,
+    ) -> Result<(), AppError> {
+        sqlx::query(
+            "UPDATE war_room_items
+             SET depends_on = ?, source_item_id = ?, updated_at = datetime('now')
+             WHERE id = ?",
+        )
+        .bind(depends_on)
+        .bind(source_item_id)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     async fn delete_item(&self, id: i64) -> Result<bool, AppError> {

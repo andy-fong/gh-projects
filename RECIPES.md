@@ -32,7 +32,7 @@ search prs --involves @me --owner solo-io --repo kgateway-dev/kgateway --state o
 ### Community PRs vs PRs from my team
 
 Every GH Query tile whose rows include `author` automatically gains an `authorGroup`
-column — `team`, `maintainer`, `bot`, or `community` — based on the roster in
+column — `team`, `pe`, `solo`, `maintainer`, `bot`, or `community` — based on the roster in
 **Team** (sidebar, above Settings). Nothing special is needed in the command:
 
 ```

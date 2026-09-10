@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use axum::{extract::State, Json};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -10,7 +11,8 @@ use crate::{
         dashboard::CreateDashboardInput,
         note::CreateNoteInput,
         release_watch::CreateReleaseWatchInput,
-        team_member::{CreateTeamMemberInput, CreateTeamMemberSourceInput},
+        repo::CreateRepoInput,
+        team_member::{CreateTeamMemberInput, CreateTeamMemberSourceInput, MEMBER_GROUPS},
         tile::CreateTileInput,
         war_room::{ChecklistItem, CreateGroupInput, CreateItemInput, CreateWarRoomInput, UpdateWarRoomInput},
     },
@@ -120,6 +122,16 @@ pub struct BackupReleaseWatch {
     pub limit_count: i64,
 }
 
+// ── Repo registry ─────────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize)]
+pub struct BackupRepo {
+    /// Original DB id — war-room groups and release watches reference it.
+    pub orig_id: i64,
+    pub name: String,
+    pub owner_repo: String,
+}
+
 // ── Team roster ───────────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize)]
@@ -146,6 +158,7 @@ pub struct BackupExport {
     pub war_rooms: Vec<BackupWarRoom>,
     pub calendars: Vec<BackupCalendar>,
     pub release_watches: Vec<BackupReleaseWatch>,
+    pub repos: Vec<BackupRepo>,
     pub team_members: Vec<BackupTeamMember>,
     pub team_member_sources: Vec<BackupTeamMemberSource>,
 }
@@ -160,6 +173,9 @@ pub struct BackupImport {
     pub calendars: Vec<BackupCalendar>,
     #[serde(default)]
     pub release_watches: Vec<BackupReleaseWatch>,
+    /// Absent in v2/v3 files; then `repo_id`s are treated as raw local ids.
+    #[serde(default)]
+    pub repos: Vec<BackupRepo>,
     #[serde(default)]
     pub team_members: Vec<BackupTeamMember>,
     #[serde(default)]
@@ -176,6 +192,88 @@ pub struct RestoreDashboardResult {
 #[derive(Serialize)]
 pub struct RestoreResult {
     pub dashboards: Vec<RestoreDashboardResult>,
+    /// Where the pre-restore database copy was written, if one was taken.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<String>,
+    /// Cross-item links (`depends_on` / `source_item_id`) re-pointed at the
+    /// newly created rows.
+    pub links_restored: usize,
+    /// Links whose target wasn't present in the backup, so they were cleared.
+    pub links_dropped: usize,
+    /// Release watches skipped because their repo couldn't be resolved.
+    pub release_watches_skipped: usize,
+}
+
+// ── Restore helpers ───────────────────────────────────────────────────────────
+
+/// Reject a payload that would certainly fail part-way through, while the
+/// database is still intact. Only checks constraints the DB itself enforces —
+/// unresolvable references are handled by clearing them, not by failing.
+fn validate_import(input: &BackupImport) -> Result<(), AppError> {
+    for d in &input.dashboards {
+        for t in &d.tiles {
+            if t.tile_type != "gh_query" && t.tile_type != "note" {
+                return Err(AppError::BadRequest(format!(
+                    "dashboard \"{}\": unknown tile_type \"{}\"",
+                    d.name, t.tile_type
+                )));
+            }
+        }
+    }
+    for wr in &input.war_rooms {
+        for g in &wr.groups {
+            for i in &g.items {
+                if let Some(rt) = &i.ref_type {
+                    if rt != "pr" && rt != "issue" {
+                        return Err(AppError::BadRequest(format!(
+                            "war room \"{}\", item \"{}\": unknown ref_type \"{rt}\"",
+                            wr.name, i.label
+                        )));
+                    }
+                }
+            }
+        }
+    }
+    for n in &input.notes {
+        if let Some(rt) = &n.ref_type {
+            if rt != "pr" && rt != "issue" {
+                return Err(AppError::BadRequest(format!(
+                    "note \"{}\": unknown ref_type \"{rt}\"",
+                    n.title
+                )));
+            }
+        }
+    }
+    for m in &input.team_members {
+        if !MEMBER_GROUPS.contains(&m.member_group.as_str()) {
+            return Err(AppError::BadRequest(format!(
+                "team member \"{}\": unknown member_group \"{}\"",
+                m.login, m.member_group
+            )));
+        }
+    }
+    for src in &input.team_member_sources {
+        if !MEMBER_GROUPS.contains(&src.member_group.as_str()) {
+            return Err(AppError::BadRequest(format!(
+                "import source \"{}\": unknown member_group \"{}\"",
+                src.org_team, src.member_group
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Where to put the pre-restore copy: alongside the database, stamped so it
+/// never overwrites an earlier one. `None` for a database with no file path.
+fn snapshot_path(db_path: &Path) -> Option<String> {
+    let name = db_path.file_name()?.to_str()?;
+    let stamp = Utc::now().format("%Y%m%dT%H%M%S");
+    Some(
+        db_path
+            .with_file_name(format!("{name}.pre-restore-{stamp}"))
+            .to_str()?
+            .to_string(),
+    )
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -331,14 +429,29 @@ pub async fn export_backup(
         })
         .collect();
 
+    // Repo registry — war-room groups and release watches point at these by
+    // id, so a backup without them can't be restored onto a different DB.
+    let backup_repos = state
+        .repos
+        .list()
+        .await?
+        .into_iter()
+        .map(|r| BackupRepo {
+            orig_id: r.id,
+            name: r.name,
+            owner_repo: r.owner_repo,
+        })
+        .collect();
+
     Ok(Json(BackupExport {
-        version: 3,
+        version: 4,
         exported_at: Utc::now().to_rfc3339(),
         dashboards: backup_dashboards,
         notes: backup_notes,
         war_rooms: backup_war_rooms,
         calendars: backup_calendars,
         release_watches: backup_release_watches,
+        repos: backup_repos,
         team_members: backup_team_members,
         team_member_sources: backup_team_member_sources,
     }))
@@ -348,6 +461,64 @@ pub async fn restore_backup(
     State(state): State<AppState>,
     Json(input): Json<BackupImport>,
 ) -> Result<impl axum::response::IntoResponse, AppError> {
+    // ---- Validate before touching anything -------------------------------
+    // Restore is destructive and not transactional, so anything that would
+    // certainly fail mid-way must be rejected while the DB is still intact.
+    validate_import(&input)?;
+
+    // ---- Snapshot the current database ------------------------------------
+    let snapshot = match snapshot_path(&state.db_path) {
+        Some(path) => match state.maintenance.snapshot_to(&path).await {
+            Ok(()) => Some(path),
+            Err(e) => {
+                // A snapshot is a safety net, not a requirement — an in-memory
+                // or unwritable DB shouldn't block a restore.
+                tracing::warn!("Pre-restore snapshot failed: {e}");
+                None
+            }
+        },
+        None => None,
+    };
+
+    // ---- Resolve the repo registry ----------------------------------------
+    // Done before the wipe because `repos` is a global registry that restore
+    // deliberately does NOT clear: wiping it would cascade-delete release
+    // watches and null out war-room group links. Existing rows are matched by
+    // `owner_repo`; only genuinely new ones are created.
+    let mut repo_id_map: HashMap<i64, i64> = HashMap::new();
+    if !input.repos.is_empty() {
+        let existing = state.repos.list().await?;
+        for br in &input.repos {
+            let want = br.owner_repo.trim().to_lowercase();
+            let hit = existing
+                .iter()
+                .find(|r| r.owner_repo.trim().to_lowercase() == want)
+                .map(|r| r.id);
+            let id = match hit {
+                Some(id) => id,
+                None => {
+                    state
+                        .repos
+                        .create(CreateRepoInput {
+                            name: br.name.clone(),
+                            owner_repo: br.owner_repo.clone(),
+                        })
+                        .await?
+                        .id
+                }
+            };
+            repo_id_map.insert(br.orig_id, id);
+        }
+    }
+    // Ids that survive as-is when the backup predates `repos` (v2/v3 files).
+    let live_repo_ids: HashSet<i64> = state.repos.list().await?.iter().map(|r| r.id).collect();
+    let resolve_repo = |orig: i64| -> Option<i64> {
+        repo_id_map
+            .get(&orig)
+            .copied()
+            .or_else(|| live_repo_ids.contains(&orig).then_some(orig))
+    };
+
     // Delete all existing data (FK CASCADE handles children)
     state.dashboards.delete_all().await?;
     state.notes.delete_all().await?;
@@ -357,7 +528,13 @@ pub async fn restore_backup(
     state.team_members.delete_all().await?;
     state.team_members.delete_all_sources().await?;
 
-    let mut result = RestoreResult { dashboards: Vec::new() };
+    let mut result = RestoreResult {
+        dashboards: Vec::new(),
+        snapshot,
+        links_restored: 0,
+        links_dropped: 0,
+        release_watches_skipped: 0,
+    };
 
     // Restore Grafana dashboards
     for d in input.dashboards {
@@ -406,7 +583,14 @@ pub async fn restore_backup(
             .await?;
     }
 
-    // Restore war rooms
+    // Restore war rooms.
+    //
+    // Two passes: `depends_on` and `source_item_id` routinely point at items
+    // in a *different* group or war room, so nothing can be linked until every
+    // item exists. Pass 1 creates all items unlinked and records
+    // orig_id -> new_id globally; pass 2 re-points the links.
+    let mut item_id_map: HashMap<i64, i64> = HashMap::new();
+    let mut pending_links: Vec<(i64, Option<i64>, Option<i64>)> = Vec::new();
     for wr in input.war_rooms {
         let room = state
             .war_rooms
@@ -447,20 +631,15 @@ pub async fn restore_backup(
                     room.id,
                     CreateGroupInput {
                         name: g.name.clone(),
-                        repo_id: g.repo_id,
+                        repo_id: g.repo_id.and_then(resolve_repo),
                         repo: g.repo.clone(),
                     },
                 )
                 .await?;
 
-            // Single-pass restore: remap depends_on as we go (works for the
-            // common case where each item depends only on earlier items).
-            let mut item_id_map: HashMap<i64, i64> = HashMap::new();
             for item in &g.items {
                 let checklist: Vec<ChecklistItem> =
                     serde_json::from_value(item.checklist.clone()).unwrap_or_default();
-                let remapped_depends =
-                    item.depends_on.and_then(|d| item_id_map.get(&d).copied());
                 let new_item = state
                     .war_rooms
                     .create_item(
@@ -480,14 +659,32 @@ pub async fn restore_backup(
                                 Some(item.stage.clone())
                             },
                             checklist: Some(checklist),
-                            depends_on: remapped_depends,
-                            source_item_id: item.source_item_id,
+                            // Linked in pass 2, once every target exists.
+                            depends_on: None,
+                            source_item_id: None,
                         },
                     )
                     .await?;
                 item_id_map.insert(item.orig_id, new_item.id);
+                if item.depends_on.is_some() || item.source_item_id.is_some() {
+                    pending_links.push((new_item.id, item.depends_on, item.source_item_id));
+                }
             }
         }
+    }
+
+    // Pass 2: re-point cross-item links now that every item has a new id. A
+    // target missing from the backup is cleared rather than left dangling.
+    for (new_id, orig_depends, orig_source) in pending_links {
+        let depends_on = orig_depends.and_then(|d| item_id_map.get(&d).copied());
+        let source_item_id = orig_source.and_then(|s| item_id_map.get(&s).copied());
+        result.links_restored += depends_on.is_some() as usize + source_item_id.is_some() as usize;
+        result.links_dropped += (orig_depends.is_some() && depends_on.is_none()) as usize
+            + (orig_source.is_some() && source_item_id.is_none()) as usize;
+        state
+            .war_rooms
+            .relink_item(new_id, depends_on, source_item_id)
+            .await?;
     }
 
     // Restore calendar dashboards
@@ -544,15 +741,22 @@ pub async fn restore_backup(
         }
     }
 
-    // Restore release watches (position is implicit from order)
+    // Restore release watches (position is implicit from order). `repo_id` is
+    // NOT NULL, so a watch whose repo can't be resolved is skipped and counted
+    // rather than failing the whole restore.
     for w in input.release_watches {
-        state
-            .release_watches
-            .create(CreateReleaseWatchInput {
-                repo_id: w.repo_id,
-                limit_count: w.limit_count,
-            })
-            .await?;
+        match resolve_repo(w.repo_id) {
+            Some(repo_id) => {
+                state
+                    .release_watches
+                    .create(CreateReleaseWatchInput {
+                        repo_id,
+                        limit_count: w.limit_count,
+                    })
+                    .await?;
+            }
+            None => result.release_watches_skipped += 1,
+        }
     }
 
     // Restore the team roster and its import sources

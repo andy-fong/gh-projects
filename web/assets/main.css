@@ -560,6 +560,14 @@ select {
     background: rgba(35, 134, 54, 0.22);
     color: #3fb950;
 }
+.badge-pe {
+    background: rgba(219, 97, 162, 0.20);
+    color: #db61a2;
+}
+.badge-solo {
+    background: rgba(163, 113, 247, 0.20);
+    color: #a371f7;
+}
 .badge-maintainer {
     background: rgba(47, 129, 247, 0.20);
     color: #58a6ff;

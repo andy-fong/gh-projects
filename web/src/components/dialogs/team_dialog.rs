@@ -10,8 +10,10 @@ use crate::types::{
 
 /// The buckets a login can be filed under, with their display labels. Anyone
 /// absent from the roster is classified `community`, so it isn't listed here.
-const GROUPS: [(&str, &str); 3] = [
+const GROUPS: [(&str, &str); 5] = [
     ("team", "Team"),
+    ("pe", "PE"),
+    ("solo", "Solo"),
     ("maintainer", "Maintainer"),
     ("bot", "Bot"),
 ];
@@ -135,7 +137,7 @@ pub fn TeamDialog(on_close: EventHandler<()>) -> Element {
                 div { class: "hint", style: "margin-bottom:12px;",
                     "GH Query tiles tag every row with an "
                     code { "authorGroup" }
-                    " column. Logins listed here become team / maintainer / bot; everyone else is community."
+                    " column. Logins listed here become team / pe / solo / maintainer / bot; everyone else is community."
                 }
 
                 for (group , label) in GROUPS.iter() {

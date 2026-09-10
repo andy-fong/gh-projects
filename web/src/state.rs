@@ -41,7 +41,8 @@ pub struct AppState {
     pub user_extractors: Signal<BTreeMap<String, String>>,
     /// User-defined Slack status emojis (NOT merged with defaults).
     pub user_stage_emojis: Signal<BTreeMap<String, String>>,
-    /// Team roster: lowercased GitHub login -> "team" | "maintainer" | "bot".
+    /// Team roster: lowercased GitHub login -> "team" | "pe" | "solo" |
+    /// "maintainer" | "bot".
     /// Loaded once in `Shell` and refreshed when `team_ver` is bumped; any
     /// login absent from the map is classified "community".
     pub team_roster: Signal<BTreeMap<String, String>>,
@@ -106,6 +107,8 @@ impl AppState {
         }
         match group.as_deref() {
             Some("team") => "team",
+            Some("pe") => "pe",
+            Some("solo") => "solo",
             Some("maintainer") => "maintainer",
             _ => "community",
         }

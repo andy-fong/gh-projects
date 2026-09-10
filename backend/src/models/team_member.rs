@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// The groups a login can be filed under. Anyone absent from the roster is
 /// classified `community` by the frontend, so it is not a stored value.
-pub const MEMBER_GROUPS: [&str; 3] = ["team", "maintainer", "bot"];
+pub const MEMBER_GROUPS: [&str; 5] = ["team", "pe", "solo", "maintainer", "bot"];
 
 /// A GitHub login on the roster, used to tag item authors in GH Query tiles.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

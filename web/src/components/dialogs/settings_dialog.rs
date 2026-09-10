@@ -5,6 +5,9 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 use crate::api;
+use crate::components::gh_query_tile::{
+    colorder_key, hidden_key, COLORDER_KEY_PREFIX, HIDDEN_KEY_PREFIX,
+};
 use crate::field_extractors::default_field_extractors;
 use crate::platform;
 use crate::state::use_app_state;
@@ -23,6 +26,7 @@ pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
     let mut restoring = use_signal(|| false);
     let mut restore_error = use_signal(|| None::<String>);
     let mut restore_success = use_signal(|| false);
+    let mut restore_report = use_signal(String::new);
 
     let save = move |_| {
         let s = extractors_json.read().clone();
@@ -52,10 +56,10 @@ pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
                         if let Some(tiles) = dash.get_mut("tiles").and_then(|t| t.as_array_mut()) {
                             for tile in tiles.iter_mut() {
                                 let id = tile.get("id").and_then(|i| i.as_i64()).unwrap_or(0);
-                                if let Some(h) = platform::get_list(&format!("gh-tile-hidden-{id}")) {
+                                if let Some(h) = platform::get_list(&hidden_key(id)) {
                                     tile["hidden_cols"] = serde_json::json!(h);
                                 }
-                                if let Some(o) = platform::get_list(&format!("gh-tile-col-order-{id}")) {
+                                if let Some(o) = platform::get_list(&colorder_key(id)) {
                                     tile["col_order"] = serde_json::json!(o);
                                 }
                             }
@@ -86,6 +90,7 @@ pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
         restoring.set(true);
         restore_error.set(None);
         restore_success.set(false);
+        restore_report.set(String::new());
         spawn(async move {
             let text = match file.read_string().await {
                 Ok(t) => t,
@@ -106,7 +111,7 @@ pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
             match api::backup::restore(&data).await {
                 Ok(result) => {
                     // Clear stale per-tile localStorage, then rewrite for new IDs.
-                    for k in platform::keys_with_prefix(&["gh-tile-hidden-", "gh-tile-col-order-"]) {
+                    for k in platform::keys_with_prefix(&[HIDDEN_KEY_PREFIX, COLORDER_KEY_PREFIX]) {
                         platform::remove_key(&k);
                     }
                     let result_dashboards =
@@ -133,19 +138,33 @@ pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
                                             .iter()
                                             .filter_map(|x| x.as_str().map(String::from))
                                             .collect();
-                                        platform::set_list(&format!("gh-tile-hidden-{new_id}"), &v);
+                                        platform::set_list(&hidden_key(new_id), &v);
                                     }
                                     if let Some(o) = tile.get("col_order").and_then(|v| v.as_array()) {
                                         let v: Vec<String> = o
                                             .iter()
                                             .filter_map(|x| x.as_str().map(String::from))
                                             .collect();
-                                        platform::set_list(&format!("gh-tile-col-order-{new_id}"), &v);
+                                        platform::set_list(&colorder_key(new_id), &v);
                                     }
                                 }
                             }
                         }
                     }
+                    // Surface what the backend actually did — dropped links or
+                    // skipped release watches are worth knowing about.
+                    let n = |k: &str| result.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
+                    let mut parts = vec![format!("{} link(s) restored", n("links_restored"))];
+                    if n("links_dropped") > 0 {
+                        parts.push(format!("{} link(s) dropped — target missing from the backup", n("links_dropped")));
+                    }
+                    if n("release_watches_skipped") > 0 {
+                        parts.push(format!("{} release watch(es) skipped — repo not found", n("release_watches_skipped")));
+                    }
+                    if let Some(snap) = result.get("snapshot").and_then(|v| v.as_str()) {
+                        parts.push(format!("previous database saved to {snap}"));
+                    }
+                    restore_report.set(parts.join(" · "));
                     restore_success.set(true);
                 }
                 Err(err) => restore_error.set(Some(err)),
@@ -237,6 +256,11 @@ pub fn SettingsDialog(on_close: EventHandler<()>) -> Element {
                         if restore_success() {
                             p { style: "color: var(--good); font-size: 12px; margin-top: 8px;",
                                 "Restore successful — reload the page to see your data."
+                            }
+                            if !restore_report.read().is_empty() {
+                                p { class: "hint", style: "margin-top: 4px; word-break: break-all;",
+                                    "{restore_report}"
+                                }
                             }
                         }
                     }

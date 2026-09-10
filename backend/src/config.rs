@@ -8,6 +8,22 @@ pub struct Config {
 }
 
 impl Config {
+    /// The SQLite file behind `database_url`, if it has one. Handles the
+    /// `sqlite://`, `sqlite:` and bare-path forms; `:memory:` has no file.
+    pub fn db_path(&self) -> PathBuf {
+        let raw = self
+            .database_url
+            .strip_prefix("sqlite://")
+            .or_else(|| self.database_url.strip_prefix("sqlite:"))
+            .unwrap_or(&self.database_url);
+        let raw = raw.split('?').next().unwrap_or(raw);
+        if raw.is_empty() || raw.contains(":memory:") {
+            PathBuf::new()
+        } else {
+            PathBuf::from(raw)
+        }
+    }
+
     pub fn from_env() -> Self {
         Self {
             database_url: std::env::var("DATABASE_URL")

@@ -131,8 +131,8 @@ pub struct UpdateRepoInput {
 pub struct TeamMember {
     pub id: i64,
     pub login: String,
-    /// "team" | "maintainer" | "bot" — anyone absent from the roster is
-    /// classified "community".
+    /// "team" | "pe" | "solo" | "maintainer" | "bot" — anyone absent from the
+    /// roster is classified "community".
     pub member_group: String,
     /// "manual", or the `org_team` this login was imported from.
     pub source: String,

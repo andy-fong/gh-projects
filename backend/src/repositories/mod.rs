@@ -7,6 +7,7 @@ pub mod release_watches;
 pub mod war_rooms;
 pub mod calendars;
 pub mod team_members;
+pub mod maintenance;
 
 pub use notes::NoteRepository;
 pub use dashboards::DashboardRepository;
@@ -17,3 +18,4 @@ pub use release_watches::ReleaseWatchRepository;
 pub use war_rooms::WarRoomRepository;
 pub use calendars::CalendarRepository;
 pub use team_members::TeamMemberRepository;
+pub use maintenance::MaintenanceRepository;

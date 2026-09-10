@@ -183,6 +183,38 @@ built-in defaults  →  global settings  →  per-tile override
 
 Each layer only needs to declare what it changes. Sorting on a column always uses the extracted value, not the raw JSON.
 
+## Backup & restore
+
+**Settings → Export backup** writes a single JSON file covering dashboards
+(with tiles, layout, row priority and per-tile column state), notes, war rooms,
+calendars, release watches, the repo registry, and the team roster. **Restore
+backup** reads one back.
+
+Restore **replaces** everything it manages — it wipes those tables first, then
+recreates them from the file. Two consequences worth knowing:
+
+- **Row ids change.** Dashboards, tiles, war-room items and so on are recreated,
+  so their ids are new. Anything referencing them by id (`depends_on`,
+  `source_item_id`, group `repo_id`, release-watch `repo_id`, per-tile
+  localStorage keys) is re-pointed during the restore.
+- **The repo registry is merged, not wiped.** Repos are matched on
+  `owner_repo`; only genuinely new ones are added. Wiping them would
+  cascade-delete release watches and null out war-room group links.
+
+Before wiping anything, restore writes a copy of the current database next to
+it as `gh-projects.db.pre-restore-<timestamp>` and reports the path. These are
+never overwritten, so delete old ones when you don't need them.
+
+A payload that would break a database constraint (unknown `tile_type`,
+`ref_type`, or `member_group`) is rejected with a 400 **before** the wipe, so a
+bad file leaves your data untouched. References that simply can't be resolved
+are cleared rather than failing the restore, and the response reports how many:
+`links_restored`, `links_dropped`, `release_watches_skipped`.
+
+Backup files are versioned (currently `4`). Older files still restore — fields
+added since are optional, and a pre-`4` file without a `repos` section falls
+back to treating `repo_id`s as local ids.
+
 ## Team & author groups
 
 kgateway-style public repos mix your team's PRs with drive-by community
@@ -193,6 +225,8 @@ gains an `authorGroup` column:
 | Value | Meaning |
 |---|---|
 | `team` | login is on the roster as **Team** |
+| `pe` | login is on the roster as **PE** — the Product Excellence team |
+| `solo` | login is on the roster as **Solo** — a colleague who isn't on the team, PE, or a maintainer |
 | `maintainer` | login is on the roster as **Maintainer** |
 | `bot` | login is on the roster as **Bot**, or `gh` reports `author.is_bot`, or the login ends in `[bot]` |
 | `community` | anyone else — `community` is the fallback, so it is never stored |
@@ -208,9 +242,11 @@ Add logins by hand, or add an **import source** and hit **Refresh from GitHub**:
 - `owner/team-slug` — pulls `gh api orgs/{owner}/teams/{slug}/members`
 - `owner` — pulls `gh api orgs/{owner}/members`
 
-Refresh only *adds* logins that aren't on the roster yet, so a login you filed
-as **Team** by hand is never demoted by a later maintainer import. A source that
-fails (bad slug, no access) is reported without stopping the others.
+Refresh only *adds* logins that aren't on the roster yet — it never edits or
+removes an existing row — so hand-curated groups like **Team**, **PE** and
+**Solo** survive every refresh untouched, even when the same login also appears
+in an imported team. A source that fails (bad slug, no access) is reported without
+stopping the others.
 
 Each login belongs to exactly one group, matched case-insensitively. The roster
 and its import sources are included in Backup/Restore.

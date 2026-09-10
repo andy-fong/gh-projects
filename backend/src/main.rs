@@ -26,6 +26,7 @@ use repositories::{
     release_watches::SqliteReleaseWatchRepository,
     war_rooms::SqliteWarRoomRepository,
     team_members::SqliteTeamMemberRepository,
+    maintenance::SqliteMaintenanceRepository,
 };
 use state::AppState;
 
@@ -51,6 +52,8 @@ async fn main() -> anyhow::Result<()> {
         war_rooms: Arc::new(SqliteWarRoomRepository::new(pool.clone())),
         calendars: Arc::new(SqliteCalendarRepository::new(pool.clone())),
         team_members: Arc::new(SqliteTeamMemberRepository::new(pool.clone())),
+        maintenance: Arc::new(SqliteMaintenanceRepository::new(pool.clone())),
+        db_path: config.db_path(),
         cache_dir: config.cache_dir.clone(),
         cache_ttl_secs: config.cache_ttl_secs,
     };

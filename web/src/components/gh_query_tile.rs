@@ -130,12 +130,17 @@ fn cmp_vals(a: &str, b: &str) -> Ordering {
     }
 }
 
-fn hidden_key(tile_id: i64) -> String {
-    format!("gh-tile-hidden-{tile_id}")
+/// localStorage key prefixes for per-tile view state. Backup/restore has to
+/// use the very same keys, so they live here as the single definition.
+pub const HIDDEN_KEY_PREFIX: &str = "gh-tile-hidden-";
+pub const COLORDER_KEY_PREFIX: &str = "gh-tile-colorder-";
+
+pub fn hidden_key(tile_id: i64) -> String {
+    format!("{HIDDEN_KEY_PREFIX}{tile_id}")
 }
 
-fn colorder_key(tile_id: i64) -> String {
-    format!("gh-tile-colorder-{tile_id}")
+pub fn colorder_key(tile_id: i64) -> String {
+    format!("{COLORDER_KEY_PREFIX}{tile_id}")
 }
 
 /// Reorder `all_keys` to honour a persisted column order. Keys present in
