@@ -36,10 +36,15 @@ pub struct AppState {
     pub repos_ver: Signal<u32>,
     pub release_watches_ver: Signal<u32>,
     pub calendars_ver: Signal<u32>,
+    pub team_ver: Signal<u32>,
     /// User-defined field extractors (NOT merged with defaults).
     pub user_extractors: Signal<BTreeMap<String, String>>,
     /// User-defined Slack status emojis (NOT merged with defaults).
     pub user_stage_emojis: Signal<BTreeMap<String, String>>,
+    /// Team roster: lowercased GitHub login -> "team" | "maintainer" | "bot".
+    /// Loaded once in `Shell` and refreshed when `team_ver` is bumped; any
+    /// login absent from the map is classified "community".
+    pub team_roster: Signal<BTreeMap<String, String>>,
 }
 
 impl AppState {
@@ -54,8 +59,10 @@ impl AppState {
             repos_ver: Signal::new(0),
             release_watches_ver: Signal::new(0),
             calendars_ver: Signal::new(0),
+            team_ver: Signal::new(0),
             user_extractors: Signal::new(settings.field_extractors),
             user_stage_emojis: Signal::new(settings.stage_emojis),
+            team_roster: Signal::new(BTreeMap::new()),
         }
     }
 
@@ -82,6 +89,26 @@ impl AppState {
     }
     pub fn invalidate_calendars(mut self) {
         *self.calendars_ver.write() += 1;
+    }
+    pub fn invalidate_team(mut self) {
+        *self.team_ver.write() += 1;
+    }
+
+    /// Which bucket an item's author falls into, for the `authorGroup` column
+    /// in GH Query tiles. Bots win over everything so a bot that happens to be
+    /// an org member still reads as a bot; otherwise it is the roster group,
+    /// defaulting to "community" for logins we don't know.
+    pub fn author_group(&self, login: &str, is_bot: bool) -> &'static str {
+        let key = login.to_lowercase();
+        let group = self.team_roster.read().get(&key).cloned();
+        if is_bot || key.ends_with("[bot]") || group.as_deref() == Some("bot") {
+            return "bot";
+        }
+        match group.as_deref() {
+            Some("team") => "team",
+            Some("maintainer") => "maintainer",
+            _ => "community",
+        }
     }
 
     /// Defaults merged with user overrides (defaults first, user wins).

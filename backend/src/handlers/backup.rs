@@ -10,6 +10,7 @@ use crate::{
         dashboard::CreateDashboardInput,
         note::CreateNoteInput,
         release_watch::CreateReleaseWatchInput,
+        team_member::{CreateTeamMemberInput, CreateTeamMemberSourceInput},
         tile::CreateTileInput,
         war_room::{ChecklistItem, CreateGroupInput, CreateItemInput, CreateWarRoomInput, UpdateWarRoomInput},
     },
@@ -119,6 +120,21 @@ pub struct BackupReleaseWatch {
     pub limit_count: i64,
 }
 
+// ── Team roster ───────────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize)]
+pub struct BackupTeamMember {
+    pub login: String,
+    pub member_group: String,
+    pub source: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BackupTeamMemberSource {
+    pub member_group: String,
+    pub org_team: String,
+}
+
 // ── Top-level export / import ─────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -130,6 +146,8 @@ pub struct BackupExport {
     pub war_rooms: Vec<BackupWarRoom>,
     pub calendars: Vec<BackupCalendar>,
     pub release_watches: Vec<BackupReleaseWatch>,
+    pub team_members: Vec<BackupTeamMember>,
+    pub team_member_sources: Vec<BackupTeamMemberSource>,
 }
 
 #[derive(Deserialize)]
@@ -142,6 +160,10 @@ pub struct BackupImport {
     pub calendars: Vec<BackupCalendar>,
     #[serde(default)]
     pub release_watches: Vec<BackupReleaseWatch>,
+    #[serde(default)]
+    pub team_members: Vec<BackupTeamMember>,
+    #[serde(default)]
+    pub team_member_sources: Vec<BackupTeamMemberSource>,
 }
 
 // ── Restore result ────────────────────────────────────────────────────────────
@@ -286,14 +308,39 @@ pub async fn export_backup(
         })
         .collect();
 
+    let backup_team_members = state
+        .team_members
+        .list()
+        .await?
+        .into_iter()
+        .map(|m| BackupTeamMember {
+            login: m.login,
+            member_group: m.member_group,
+            source: m.source,
+        })
+        .collect();
+
+    let backup_team_member_sources = state
+        .team_members
+        .list_sources()
+        .await?
+        .into_iter()
+        .map(|s| BackupTeamMemberSource {
+            member_group: s.member_group,
+            org_team: s.org_team,
+        })
+        .collect();
+
     Ok(Json(BackupExport {
-        version: 2,
+        version: 3,
         exported_at: Utc::now().to_rfc3339(),
         dashboards: backup_dashboards,
         notes: backup_notes,
         war_rooms: backup_war_rooms,
         calendars: backup_calendars,
         release_watches: backup_release_watches,
+        team_members: backup_team_members,
+        team_member_sources: backup_team_member_sources,
     }))
 }
 
@@ -307,6 +354,8 @@ pub async fn restore_backup(
     state.war_rooms.delete_all().await?;
     state.calendars.delete_all().await?;
     state.release_watches.delete_all().await?;
+    state.team_members.delete_all().await?;
+    state.team_members.delete_all_sources().await?;
 
     let mut result = RestoreResult { dashboards: Vec::new() };
 
@@ -502,6 +551,27 @@ pub async fn restore_backup(
             .create(CreateReleaseWatchInput {
                 repo_id: w.repo_id,
                 limit_count: w.limit_count,
+            })
+            .await?;
+    }
+
+    // Restore the team roster and its import sources
+    for m in input.team_members {
+        state
+            .team_members
+            .create(CreateTeamMemberInput {
+                login: m.login,
+                member_group: m.member_group,
+                source: Some(m.source),
+            })
+            .await?;
+    }
+    for s in input.team_member_sources {
+        state
+            .team_members
+            .create_source(CreateTeamMemberSourceInput {
+                member_group: s.member_group,
+                org_team: s.org_team,
             })
             .await?;
     }

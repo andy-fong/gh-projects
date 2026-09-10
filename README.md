@@ -45,16 +45,26 @@ two-step path below is equivalent if you'd rather not use `cargo-make`.
 dx build --release -p gh-projects-web
 ```
 
-This compiles the Dioxus app to `target/dx/gh-projects-web/release/web/public/`.
+This compiles the Dioxus app to `$CARGO_TARGET_DIR/dx/gh-projects-web/release/web/public/`
+(`target/dx/...` unless you've set `CARGO_TARGET_DIR`).
 (On some macOS setups `wasm-opt` aborts; `dx` falls back to an unoptimized but
 fully working bundle — that's fine.)
+
+> **`cargo build` does not rebuild the frontend.** The WASM bundle only changes
+> when you run `dx build` (or `cargo make`, which does both). Restarting the
+> backend after `cargo build` picks up backend changes only.
 
 > **Rebuilding / changes not showing up?** `dx build` writes content-hashed
 > assets into the output directory but doesn't prune old ones, so they pile up
 > across builds. `index.html` itself isn't cache-busted, so after a rebuild your
 > browser may still load the previous bundle — **hard-refresh** (Cmd+Shift+R) to
 > pick up changes. To start from a clean bundle, delete the output directory
-> first: `rm -rf target/dx/gh-projects-web/release/web/public`.
+> first: `rm -rf "${CARGO_TARGET_DIR:-target}/dx/gh-projects-web/release/web/public"`.
+>
+> Still serving the old UI? The backend logs `Serving frontend bundle from <dir>`
+> at startup — check that it matches where `dx build` wrote. A leftover
+> `target/dx/...` bundle from before `CARGO_TARGET_DIR` was set is a classic
+> cause; delete it or set `STATIC_DIR` explicitly.
 
 ### 2. Run the backend (serves the API **and** the frontend)
 
@@ -101,7 +111,7 @@ CACHE_DIR=/tmp/gh-cache CACHE_TTL_SECS=600 cargo run -p gh-projects-backend
 
 | Variable | Default | Description |
 |---|---|---|
-| `STATIC_DIR` | `target/dx/gh-projects-web/release/web/public` | Directory of the built frontend bundle to serve |
+| `STATIC_DIR` | `$CARGO_TARGET_DIR/dx/gh-projects-web/release/web/public` (`target/dx/...` if unset) | Directory of the built frontend bundle to serve |
 
 ## Adding a GH Query tile
 
@@ -172,6 +182,38 @@ built-in defaults  →  global settings  →  per-tile override
 ```
 
 Each layer only needs to declare what it changes. Sorting on a column always uses the extracted value, not the raw JSON.
+
+## Team & author groups
+
+kgateway-style public repos mix your team's PRs with drive-by community
+contributions. Open **Team** from the sidebar (just above Settings) to keep a
+roster of GitHub logins, and every GH Query tile whose rows include `author`
+gains an `authorGroup` column:
+
+| Value | Meaning |
+|---|---|
+| `team` | login is on the roster as **Team** |
+| `maintainer` | login is on the roster as **Maintainer** |
+| `bot` | login is on the roster as **Bot**, or `gh` reports `author.is_bot`, or the login ends in `[bot]` |
+| `community` | anyone else — `community` is the fallback, so it is never stored |
+
+The column is a normal column: sort it, hide it or drag it in the **Columns**
+picker, filter it from the funnel, or click a badge to filter the tile to that
+group.
+
+### Populating the roster
+
+Add logins by hand, or add an **import source** and hit **Refresh from GitHub**:
+
+- `owner/team-slug` — pulls `gh api orgs/{owner}/teams/{slug}/members`
+- `owner` — pulls `gh api orgs/{owner}/members`
+
+Refresh only *adds* logins that aren't on the roster yet, so a login you filed
+as **Team** by hand is never demoted by a later maintainer import. A source that
+fails (bad slug, no access) is reported without stopping the others.
+
+Each login belongs to exactly one group, matched case-insensitively. The roster
+and its import sources are included in Backup/Restore.
 
 ## How notes work
 
@@ -323,6 +365,11 @@ gh-projects/
 | PUT/DELETE | `/api/dashboards/:id/tiles/:tid` | Update / delete tile |
 | GET/POST | `/api/repos` | List / create repo-registry entries |
 | PUT/DELETE | `/api/repos/:id` | Update / delete a repo-registry entry |
+| GET/POST | `/api/team-members` | List / create team-roster entries |
+| PUT/DELETE | `/api/team-members/:id` | Update / delete a roster entry |
+| POST | `/api/team-members/refresh` | Re-import every source; returns `{added, skipped, errors}` |
+| GET/POST | `/api/team-member-sources` | List / create roster import sources |
+| DELETE | `/api/team-member-sources/:id` | Delete an import source |
 | GET/POST | `/api/war-rooms` | List / create war rooms |
 | GET/PUT/DELETE | `/api/war-rooms/:id` | Get (nested groups + items) / update / delete a war room |
 | POST | `/api/war-rooms/:id/groups` | Create a group in a war room |

@@ -1,13 +1,14 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
     LdCalendar, LdFolderGit2, LdGithub, LdLayoutDashboard, LdPlus, LdRefreshCcw, LdSettings,
-    LdSiren, LdStickyNote, LdTag,
+    LdSiren, LdStickyNote, LdTag, LdUsers,
 };
 use dioxus_free_icons::Icon;
 
 use crate::api;
 use crate::components::dialogs::repos_dialog::ReposDialog;
 use crate::components::dialogs::settings_dialog::SettingsDialog;
+use crate::components::dialogs::team_dialog::TeamDialog;
 use crate::state::use_app_state;
 use crate::types::{CreateCalendarDashboardInput, CreateDashboardInput, CreateWarRoomInput};
 use crate::Route;
@@ -51,6 +52,7 @@ pub fn Sidebar(on_toggle_releases: EventHandler<()>) -> Element {
     let mut invalidating = use_signal(|| false);
     let mut show_settings = use_signal(|| false);
     let mut show_repos = use_signal(|| false);
+    let mut show_team = use_signal(|| false);
 
     let submit_create = move |_| {
         let name = new_name.read().trim().to_string();
@@ -277,6 +279,13 @@ pub fn Sidebar(on_toggle_releases: EventHandler<()>) -> Element {
                 }
                 button {
                     class: "nav-item subtle",
+                    title: "Team roster used to tag PR/issue authors",
+                    onclick: move |_| show_team.set(true),
+                    Icon { width: 16, height: 16, icon: LdUsers }
+                    "Team"
+                }
+                button {
+                    class: "nav-item subtle",
                     onclick: move |_| show_settings.set(true),
                     Icon { width: 16, height: 16, icon: LdSettings }
                     "Settings"
@@ -288,6 +297,9 @@ pub fn Sidebar(on_toggle_releases: EventHandler<()>) -> Element {
         }
         if show_repos() {
             ReposDialog { on_close: move |_| show_repos.set(false) }
+        }
+        if show_team() {
+            TeamDialog { on_close: move |_| show_team.set(false) }
         }
     }
 }

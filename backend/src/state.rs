@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::path::PathBuf;
 use crate::repositories::{
     CalendarRepository, DashboardRepository, NoteRepository, ReleaseWatchRepository,
-    RepoRepository, RowOrderRepository, TileRepository, WarRoomRepository,
+    RepoRepository, RowOrderRepository, TeamMemberRepository, TileRepository, WarRoomRepository,
 };
 
 #[derive(Clone)]
@@ -15,6 +15,7 @@ pub struct AppState {
     pub release_watches: Arc<dyn ReleaseWatchRepository>,
     pub war_rooms: Arc<dyn WarRoomRepository>,
     pub calendars: Arc<dyn CalendarRepository>,
+    pub team_members: Arc<dyn TeamMemberRepository>,
     pub cache_dir: PathBuf,
     pub cache_ttl_secs: u64,
 }

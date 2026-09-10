@@ -148,18 +148,7 @@ pub async fn execute_gh(
     }
 
     // Cache miss — run gh
-    let args = parse_args(cmd_str);
-    let output = Command::new("gh")
-        .args(args)
-        .output()
-        .map_err(|e| AppError::Command(format!("Failed to run gh: {e}")))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    if !output.status.success() {
-        return Err(AppError::Command(format!("gh exited with error: {stderr}")));
-    }
+    let (parsed, stdout) = run_gh(cmd_str)?;
 
     // Best-effort cache write — never fail the request on write errors
     if let Some(parent) = path.parent() {
@@ -167,10 +156,28 @@ pub async fn execute_gh(
     }
     let _ = std::fs::write(&path, &stdout);
 
+    Ok(Json(GhExecuteResponse { output: parsed, raw: stdout, cached: false }))
+}
+
+/// Run `gh <cmd>` and parse stdout as JSON, bypassing the disk cache. Returns
+/// `(parsed, raw)`; non-JSON output comes back as a `Value::String`.
+pub(crate) fn run_gh(cmd: &str) -> Result<(serde_json::Value, String), AppError> {
+    let output = Command::new("gh")
+        .args(parse_args(cmd))
+        .output()
+        .map_err(|e| AppError::Command(format!("Failed to run gh: {e}")))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        return Err(AppError::Command(format!("gh exited with error: {stderr}")));
+    }
+
     let parsed: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|_| serde_json::Value::String(stdout.clone()));
 
-    Ok(Json(GhExecuteResponse { output: parsed, raw: stdout, cached: false }))
+    Ok((parsed, stdout))
 }
 
 pub async fn invalidate_cache(

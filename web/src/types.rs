@@ -125,6 +125,62 @@ pub struct UpdateRepoInput {
     pub position: Option<i64>,
 }
 
+// ---- Team roster (author groups) ----
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct TeamMember {
+    pub id: i64,
+    pub login: String,
+    /// "team" | "maintainer" | "bot" — anyone absent from the roster is
+    /// classified "community".
+    pub member_group: String,
+    /// "manual", or the `org_team` this login was imported from.
+    pub source: String,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct CreateTeamMemberInput {
+    pub login: String,
+    pub member_group: String,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct UpdateTeamMemberInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub member_group: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<i64>,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+pub struct TeamMemberSource {
+    pub id: i64,
+    pub member_group: String,
+    /// `owner/team-slug` for a GitHub team, or a bare `owner` for a whole org.
+    pub org_team: String,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct CreateTeamMemberSourceInput {
+    pub member_group: String,
+    pub org_team: String,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize)]
+pub struct RefreshTeamResult {
+    pub added: usize,
+    pub skipped: usize,
+    pub errors: Vec<String>,
+}
+
 // ---- War rooms ----
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]

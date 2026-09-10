@@ -25,6 +25,7 @@ use repositories::{
     repos::SqliteRepoRepository,
     release_watches::SqliteReleaseWatchRepository,
     war_rooms::SqliteWarRoomRepository,
+    team_members::SqliteTeamMemberRepository,
 };
 use state::AppState;
 
@@ -49,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
         release_watches: Arc::new(SqliteReleaseWatchRepository::new(pool.clone())),
         war_rooms: Arc::new(SqliteWarRoomRepository::new(pool.clone())),
         calendars: Arc::new(SqliteCalendarRepository::new(pool.clone())),
+        team_members: Arc::new(SqliteTeamMemberRepository::new(pool.clone())),
         cache_dir: config.cache_dir.clone(),
         cache_ttl_secs: config.cache_ttl_secs,
     };
@@ -73,6 +75,12 @@ async fn main() -> anyhow::Result<()> {
         // Repo registry (reusable across war rooms)
         .route("/api/repos", get(handlers::repos::list_repos).post(handlers::repos::create_repo))
         .route("/api/repos/:id", put(handlers::repos::update_repo).delete(handlers::repos::delete_repo))
+        // Team roster (author groups for GH Query tiles)
+        .route("/api/team-members", get(handlers::team_members::list_team_members).post(handlers::team_members::create_team_member))
+        .route("/api/team-members/refresh", post(handlers::team_members::refresh_team_members))
+        .route("/api/team-members/:id", put(handlers::team_members::update_team_member).delete(handlers::team_members::delete_team_member))
+        .route("/api/team-member-sources", get(handlers::team_members::list_team_member_sources).post(handlers::team_members::create_team_member_source))
+        .route("/api/team-member-sources/:id", delete(handlers::team_members::delete_team_member_source))
         // Release watches (panel config)
         .route("/api/release-watches", get(handlers::release_watches::list_release_watches).post(handlers::release_watches::create_release_watch))
         .route("/api/release-watches/reorder", put(handlers::release_watches::reorder_release_watches))
@@ -106,9 +114,15 @@ async fn main() -> anyhow::Result<()> {
     // through to the static bundle; unknown paths serve index.html so the
     // client-side router can handle them (SPA fallback). Override the location
     // with STATIC_DIR. If the bundle isn't built yet, the API still runs.
-    let static_dir = std::env::var("STATIC_DIR")
-        .unwrap_or_else(|_| "target/dx/gh-projects-web/release/web/public".to_string());
+    let static_dir = std::env::var("STATIC_DIR").unwrap_or_else(|_| {
+        // `dx` writes the bundle under Cargo's target directory, which
+        // CARGO_TARGET_DIR relocates — honour it, or a stale `target/dx`
+        // bundle gets served silently instead of the one just built.
+        let target = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
+        format!("{target}/dx/gh-projects-web/release/web/public")
+    });
     let app = if std::path::Path::new(&static_dir).join("index.html").exists() {
+        tracing::info!("Serving frontend bundle from {static_dir}");
         let index = format!("{static_dir}/index.html");
         let serve = ServeDir::new(&static_dir).not_found_service(ServeFile::new(index));
         app.fallback_service(serve)

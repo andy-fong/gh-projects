@@ -555,6 +555,24 @@ select {
     background: #6e7681;
     color: #fff;
 }
+/* Author groups in GH Query tiles (the `authorGroup` column) */
+.badge-team {
+    background: rgba(35, 134, 54, 0.22);
+    color: #3fb950;
+}
+.badge-maintainer {
+    background: rgba(47, 129, 247, 0.20);
+    color: #58a6ff;
+}
+.badge-community {
+    background: rgba(210, 153, 34, 0.20);
+    color: #e3b341;
+}
+.badge-bot {
+    background: rgba(110, 118, 129, 0.22);
+    color: #8b949e;
+}
+
 .label-chip {
     padding: 2px 8px;
     border-radius: 999px;

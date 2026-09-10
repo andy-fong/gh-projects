@@ -261,6 +261,47 @@ pub mod repos {
     }
 }
 
+// ---- Team roster (author groups) ----
+
+pub mod team_members {
+    use super::*;
+
+    pub async fn list() -> Result<Vec<TeamMember>, String> {
+        send_get("/api/team-members").await
+    }
+
+    pub async fn create(input: &CreateTeamMemberInput) -> Result<TeamMember, String> {
+        send_json("POST", "/api/team-members", input).await
+    }
+
+    pub async fn update(id: i64, input: &UpdateTeamMemberInput) -> Result<TeamMember, String> {
+        send_json("PUT", &format!("/api/team-members/{id}"), input).await
+    }
+
+    pub async fn delete(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/team-members/{id}")).await
+    }
+
+    /// Re-import every configured source. Existing logins keep their group.
+    pub async fn refresh() -> Result<RefreshTeamResult, String> {
+        send_json("POST", "/api/team-members/refresh", &()).await
+    }
+
+    pub async fn list_sources() -> Result<Vec<TeamMemberSource>, String> {
+        send_get("/api/team-member-sources").await
+    }
+
+    pub async fn create_source(
+        input: &CreateTeamMemberSourceInput,
+    ) -> Result<TeamMemberSource, String> {
+        send_json("POST", "/api/team-member-sources", input).await
+    }
+
+    pub async fn delete_source(id: i64) -> Result<(), String> {
+        send_delete(&format!("/api/team-member-sources/{id}")).await
+    }
+}
+
 // ---- War rooms ----
 
 pub mod war_rooms {

@@ -29,6 +29,43 @@ search prs --involves @me --owner solo-io --repo kgateway-dev/kgateway --state o
 > **Note:** The `-author:@me` negation from GitHub's web search syntax is not supported by `gh search prs`.
 > Omit it and rely on `--involves` to scope results.
 
+### Community PRs vs PRs from my team
+
+Every GH Query tile whose rows include `author` automatically gains an `authorGroup`
+column — `team`, `maintainer`, `bot`, or `community` — based on the roster in
+**Team** (sidebar, above Settings). Nothing special is needed in the command:
+
+```
+pr list --repo kgateway-dev/kgateway --search "created:>{{date:-14d}}" --state open --limit 100 --json author,number,title,labels,state,assignees,createdAt,updatedAt,url
+```
+
+Click a badge in the column (or use the filter funnel) to narrow the tile to one
+group. Drag the column into place with the **Columns** picker.
+
+### Import the roster from a GitHub team
+
+The **Team** dialog's import sources run this for you, but the same command works
+in a tile if you want to eyeball a team's membership:
+
+```
+api orgs/kgateway-dev/teams/controller-maintainers/members --paginate --json login
+```
+
+Use a bare org to pull everyone: `api orgs/solo-io/members --paginate`.
+
+### Only community PRs (no roster needed)
+
+`-author:` negation works in `--search`, so a tile can exclude your team directly:
+
+```
+pr list --repo kgateway-dev/kgateway --search "created:>{{date:-14d}} -author:andy-fong -author:sheidkamp" --state open --limit 100 --json author,number,title,state,createdAt,url
+```
+
+> **Note:** multiple *positive* `author:` qualifiers are AND-ed by GitHub search, so
+> `author:a author:b` matches nothing. For a team-only tile use the array-variable
+> fan-out instead (see "Same command across multiple repos" below, with an
+> `{{authors}}` array), or just filter the `authorGroup` column.
+
 ---
 
 ## Issues
@@ -103,3 +140,5 @@ The tile runs the command once per array element and merges all results. Only on
 - Add `--limit N` (default 30) to fetch more results.
 - The `url` field is used by the tile to make the `number` column a clickable link — always include it.
 - Useful `--json` fields: `number`, `title`, `state`, `repository`, `author`, `assignees`, `isDraft`, `updatedAt`, `url`, `labels`, `commentsCount`.
+- `gh pr list --json` has **no** `authorAssociation` field (only `gh api` and GraphQL expose it) — use the `authorGroup` column instead.
+- Multiple positive `author:` qualifiers in `--search` are AND-ed and match nothing; only `-author:` negation composes.

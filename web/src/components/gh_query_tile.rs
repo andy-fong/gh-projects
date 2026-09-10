@@ -95,6 +95,21 @@ fn row_repo(row: &Value) -> Option<String> {
     None
 }
 
+/// The item's author login and whether GitHub flags it as a bot. `gh` returns
+/// `author` as an object for both `pr/issue list` and `search prs/issues`.
+fn row_author(row: &Value) -> Option<(String, bool)> {
+    let author = row.get("author")?;
+    let login = author.get("login")?.as_str()?;
+    if login.is_empty() {
+        return None;
+    }
+    let is_bot = author
+        .get("is_bot")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    Some((login.to_string(), is_bot))
+}
+
 fn row_number(row: &Value) -> Option<i64> {
     let n = row.get("number")?;
     n.as_i64()
@@ -276,6 +291,15 @@ pub fn GhQueryTile(config: GhQueryConfig, tile_id: i64) -> Element {
                                 json!({"nameWithOwner": rc, "name": name}),
                             );
                         }
+                    }
+                }
+                // Tag the author's bucket so it becomes a real column: only
+                // for rows that actually have an author, so release/repo-view
+                // tiles don't grow an empty column.
+                if let Some((login, is_bot)) = row_author(&row) {
+                    let group = state.author_group(&login, is_bot);
+                    if let Some(o) = row.as_object_mut() {
+                        o.insert("authorGroup".into(), json!(group));
                     }
                 }
                 raw.push(row);
@@ -892,6 +916,31 @@ fn render_cell(
                 }
             };
         }
+    }
+
+    if k == "authorGroup" {
+        let kc = k.clone();
+        let dc = display.clone();
+        let badge_class = format!("badge badge-{display}");
+        return rsx! {
+            td {
+                span {
+                    class: if is_active { "cell-clickable cell-active" } else { "cell-clickable" },
+                    onclick: move |_| {
+                        if !dc.is_empty() {
+                            let mut f = filters.write();
+                            let e = f.entry(kc.clone()).or_default();
+                            if let Some(p) = e.iter().position(|v| *v == dc) {
+                                e.remove(p);
+                            } else {
+                                e.push(dc.clone());
+                            }
+                        }
+                    },
+                    span { class: "{badge_class}", "{cell_display}" }
+                }
+            }
+        };
     }
 
     let kc = k.clone();

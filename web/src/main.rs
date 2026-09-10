@@ -78,6 +78,26 @@ fn App() -> Element {
 #[component]
 fn Shell() -> Element {
     let mut show_releases = use_signal(|| false);
+    let state = use_context::<AppState>();
+
+    // Load the team roster once for the whole app rather than per tile, and
+    // re-fetch whenever `team_ver` is bumped (Team dialog edits / refresh).
+    let roster = use_resource(move || {
+        let _ = state.team_ver.read();
+        async move { api::team_members::list().await }
+    });
+    use_effect(move || {
+        if let Some(Ok(members)) = roster.read().as_ref() {
+            let mut state = state;
+            state.team_roster.set(
+                members
+                    .iter()
+                    .map(|m| (m.login.to_lowercase(), m.member_group.clone()))
+                    .collect(),
+            );
+        }
+    });
+
     rsx! {
         div { class: "app",
             Sidebar { on_toggle_releases: move |_| show_releases.set(!show_releases()) }

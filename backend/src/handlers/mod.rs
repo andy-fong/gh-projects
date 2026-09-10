@@ -8,3 +8,4 @@ pub mod repos;
 pub mod release_watches;
 pub mod war_rooms;
 pub mod calendars;
+pub mod team_members;
