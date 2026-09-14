@@ -580,6 +580,12 @@ pub struct RepoHealth {
     #[serde(default)]
     pub merged_without_approval: i64,
     pub opened_in_window: i64,
+    #[serde(default)]
+    pub stale_closed: i64,
+    #[serde(default)]
+    pub stale_marked: i64,
+    #[serde(default)]
+    pub stale_open_now: i64,
     pub median_ttfr_hours: Option<f64>,
     pub p90_ttfr_hours: Option<f64>,
     pub pct_never_reviewed: Option<f64>,
@@ -604,6 +610,12 @@ pub struct StatsTotals {
     pub prs_merged_without_review: i64,
     #[serde(default)]
     pub merged_without_approval: i64,
+    #[serde(default)]
+    pub stale_closed: i64,
+    #[serde(default)]
+    pub stale_marked: i64,
+    #[serde(default)]
+    pub stale_open_now: i64,
     pub open_unreviewed: i64,
     pub open_unreviewed_7d: i64,
     pub review_events: i64,

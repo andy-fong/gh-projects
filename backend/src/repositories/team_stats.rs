@@ -281,6 +281,10 @@ impl TeamStatsRepository for SqliteTeamStatsRepository {
                SUM(s.merged_at >= ? AND s.merged_at < ?
                    AND s.human_approvals = 0) AS merged_without_approval,
                SUM(s.gh_created_at >= ? AND s.gh_created_at < ?) AS opened_in_window,
+               SUM(s.closed_by_stale_bot = 1
+                   AND s.closed_at >= ? AND s.closed_at < ?) AS stale_closed,
+               SUM(s.stale_labeled_at >= ? AND s.stale_labeled_at < ?) AS stale_marked,
+               SUM(s.state = 'OPEN' AND s.is_stale = 1) AS stale_open_now,
                m.median_h AS median_ttfr_hours,
                p.p90_h    AS p90_ttfr_hours,
                ROUND(100.0 * SUM(s.is_draft = 0 AND s.gh_created_at >= ? AND s.gh_created_at < ?
@@ -297,8 +301,9 @@ impl TeamStatsRepository for SqliteTeamStatsRepository {
         let mut q = scoped_query::<RepoHealth>(&sql, scope);
         q = q.bind(since).bind(until); // ttfr
         // merged_in_window, merged_without_human_review, merged_without_approval,
-        // opened_in_window, and the two halves of pct_never_reviewed.
-        for _ in 0..6 {
+        // opened_in_window, stale_closed, stale_marked, and the two halves of
+        // pct_never_reviewed.
+        for _ in 0..8 {
             q = q.bind(since).bind(until);
         }
         Ok(q.fetch_all(&self.pool).await?)
@@ -440,6 +445,11 @@ impl TeamStatsRepository for SqliteTeamStatsRepository {
                        OR first_human_review_at > merged_at)) AS prs_merged_without_review,
                (SELECT COUNT(*) FROM scoped WHERE merged_at >= ? AND merged_at < ?
                   AND human_approvals = 0) AS merged_without_approval,
+               (SELECT COUNT(*) FROM scoped WHERE closed_by_stale_bot = 1
+                  AND closed_at >= ? AND closed_at < ?) AS stale_closed,
+               (SELECT COUNT(*) FROM scoped
+                  WHERE stale_labeled_at >= ? AND stale_labeled_at < ?) AS stale_marked,
+               (SELECT COUNT(*) FROM scoped WHERE state = 'OPEN' AND is_stale = 1) AS stale_open_now,
                (SELECT COUNT(*) FROM scoped WHERE state = 'OPEN' AND is_draft = 0
                   AND human_review_events = 0) AS open_unreviewed,
                (SELECT COUNT(*) FROM scoped WHERE state = 'OPEN' AND is_draft = 0
@@ -463,8 +473,9 @@ impl TeamStatsRepository for SqliteTeamStatsRepository {
         let mut q = scoped_query::<StatsTotals>(&sql, scope);
         q = q.bind(since).bind(until); // ttfr
         q = q.bind(since).bind(until); // rev
-        // prs_opened, prs_merged, prs_merged_without_review, merged_without_approval
-        for _ in 0..4 {
+        // prs_opened, prs_merged, prs_merged_without_review,
+        // merged_without_approval, stale_closed, stale_marked
+        for _ in 0..6 {
             q = q.bind(since).bind(until);
         }
         q = q.bind(since).bind(until); // bot_review_events
@@ -654,6 +665,47 @@ mod tests {
         assert_eq!(repo.repo_health(&alpha, SINCE, UNTIL).await.unwrap().len(), 1);
         assert!(!repo.member_trends(&alpha, SINCE, UNTIL).await.unwrap().is_empty());
         assert!(!repo.worklist(&alpha, "unreviewed", "oldest", 10, 0).await.unwrap().is_empty());
+    }
+
+    /// Staleness has two distinct events, and conflating them would overcount:
+    /// the bot labelling a PR, and the bot *closing* it. A human closing a PR
+    /// that happens to carry the stale label is a decision, not automation.
+    #[tokio::test]
+    async fn stale_bot_closures_are_distinguished_from_human_ones() {
+        let pool = seed().await;
+        let repo = SqliteTeamStatsRepository::new(pool.clone());
+        let all = RepoScope::new(vec![]);
+
+        // #20 labelled stale and closed by the bot; #21 labelled stale but
+        // closed by a person; #22 labelled stale and still open.
+        for (num, closed_by, state, closed_at) in [
+            (20, Some("github-actions"), "CLOSED", Some("2026-08-14T00:00:00Z")),
+            (21, Some("alice"), "CLOSED", Some("2026-08-14T00:00:00Z")),
+            (22, None, "OPEN", None),
+        ] {
+            sqlx::query(
+                "INSERT INTO pr_facts (repo, number, title, url, state, author_login,
+                     gh_created_at, gh_updated_at, closed_at, closed_by_login,
+                     is_stale, stale_labeled_at)
+                 VALUES ('acme/alpha', ?, 't', 'u', ?, 'bob',
+                     '2026-08-03T00:00:00Z', '2026-08-03T00:00:00Z', ?, ?, 1,
+                     '2026-08-10T00:00:00Z')",
+            )
+            .bind(num).bind(state).bind(closed_at).bind(closed_by)
+            .execute(&pool).await.unwrap();
+        }
+
+        let t = repo.totals(&all, SINCE, UNTIL).await.unwrap();
+        assert_eq!(t.stale_closed, 1, "only the bot-closed one counts");
+        assert_eq!(t.stale_marked, 3, "all three were labelled stale");
+        assert_eq!(t.stale_open_now, 1, "only #22 is still open and stale");
+
+        // `github-actions` is identified via the roster, not a hardcoded name —
+        // reclassify it and the closure stops counting as automation.
+        sqlx::query("UPDATE team_members SET member_group='team' WHERE login='github-actions'")
+            .execute(&pool).await.unwrap();
+        let after = repo.totals(&all, SINCE, UNTIL).await.unwrap();
+        assert_eq!(after.stale_closed, 0, "no longer a bot, so no longer automation");
     }
 
     /// A still-draft PR asks nobody for review, so it must not land in Opened

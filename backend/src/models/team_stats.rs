@@ -31,6 +31,12 @@ pub struct PrFactRow {
     pub review_total: i64,
     pub reviews_truncated: bool,
     pub requests_truncated: bool,
+    /// Actor on the most recent CLOSED event.
+    pub closed_by_login: Option<String>,
+    /// Most recent time the `stale` label was applied.
+    pub stale_labeled_at: Option<String>,
+    /// Carries the `stale` label right now.
+    pub is_stale: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -252,6 +258,9 @@ pub struct RepoHealth {
     /// Merged with nobody having approved it.
     pub merged_without_approval: i64,
     pub opened_in_window: i64,
+    pub stale_closed: i64,
+    pub stale_marked: i64,
+    pub stale_open_now: i64,
     pub median_ttfr_hours: Option<f64>,
     pub p90_ttfr_hours: Option<f64>,
     /// The uncensored companion to the median: a TTFR computed over only the
@@ -317,6 +326,13 @@ pub struct StatsTotals {
     pub prs_merged_without_review: i64,
     /// See `RepoHealth::merged_without_approval`.
     pub merged_without_approval: i64,
+    /// PRs the stale bot closed in this window — work that timed out rather
+    /// than being decided on.
+    pub stale_closed: i64,
+    /// PRs the bot marked stale in this window.
+    pub stale_marked: i64,
+    /// PRs carrying the stale label right now. A live count, like the backlog.
+    pub stale_open_now: i64,
     pub open_unreviewed: i64,
     pub open_unreviewed_7d: i64,
     pub review_events: i64,

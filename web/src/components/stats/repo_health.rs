@@ -45,6 +45,11 @@ pub fn RepoHealthTable(rows: Vec<RepoHealth>) -> Element {
                             title: "Merged with nobody having approved it",
                             "No approval"
                         }
+                        th {
+                            class: "num",
+                            title: "Open PRs carrying the stale label right now, and how many the bot closed in this window",
+                            "Stale"
+                        }
                         th { class: "num", title: "Median time to first human review", "TTFR med" }
                         th { class: "num", title: "90th percentile — the tail that actually hurts", "p90" }
                         th { title: "Share of PRs opened in-window that never got a human review", "Never reviewed" }
@@ -78,6 +83,23 @@ pub fn RepoHealthTable(rows: Vec<RepoHealth>) -> Element {
                                 span {
                                     class: if r.merged_without_approval > 0 { "ts-ratio-value bad" } else { "muted" },
                                     "{r.merged_without_approval}"
+                                }
+                            }
+                            td { class: "num",
+                                if r.stale_open_now == 0 && r.stale_closed == 0 {
+                                    span { class: "muted", "—" }
+                                } else {
+                                    span {
+                                        class: if r.stale_open_now > 0 { "ts-ratio-value warn" } else { "muted" },
+                                        "{r.stale_open_now}"
+                                    }
+                                    if r.stale_closed > 0 {
+                                        span {
+                                            class: "muted text-xs",
+                                            title: "closed by the bot in this window",
+                                            " (+{r.stale_closed} closed)"
+                                        }
+                                    }
                                 }
                             }
                             td { class: "num mono", "{hours_label(r.median_ttfr_hours)}" }

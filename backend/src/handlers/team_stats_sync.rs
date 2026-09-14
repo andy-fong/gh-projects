@@ -20,6 +20,9 @@ use crate::{
     state::AppState,
 };
 
+/// `labels` and `timelineItems` are free here — measured, they leave the cost
+/// at 1 point per page, the same as without them.
+///
 /// `reviews(first: 50)` is comfortably above the observed distribution
 /// (median 1, p95 5, max 7 over a 100-PR sample); `totalCount` plus
 /// `pageInfo.hasNextPage` detect the rare overflow rather than letting it skew
@@ -45,6 +48,14 @@ query($q: String!, $cursor: String) {
         nodes { requestedReviewer { ... on User { login } ... on Team { slug } } }
       }
       comments { totalCount }
+      labels(first: 30) { nodes { name } }
+      timelineItems(last: 40, itemTypes: [LABELED_EVENT, CLOSED_EVENT]) {
+        nodes {
+          __typename
+          ... on LabeledEvent { createdAt label { name } }
+          ... on ClosedEvent { createdAt actor { login } }
+        }
+      }
     } }
   }
 }
@@ -174,6 +185,49 @@ fn to_ingest(node: &Value) -> Option<(PrIngest, i64)> {
         skipped += reviews_node.get("nodes").and_then(|n| n.as_array()).map_or(0, |a| a.len() as i64);
     }
 
+    // Stale tracking. The label marks it; the CLOSED actor says whether
+    // automation or a person actually closed it — they are different events and
+    // a human closing a stale PR is a decision, not automation.
+    let is_stale = node
+        .get("labels")
+        .and_then(|l| l.get("nodes"))
+        .and_then(|n| n.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|l| l.get("name").and_then(|n| n.as_str()))
+                .any(|n| n.eq_ignore_ascii_case("stale"))
+        })
+        .unwrap_or(false);
+
+    let mut stale_labeled_at: Option<String> = None;
+    let mut closed_by_login: Option<String> = None;
+    for ev in node
+        .get("timelineItems")
+        .and_then(|t| t.get("nodes"))
+        .and_then(|n| n.as_array())
+        .cloned()
+        .unwrap_or_default()
+    {
+        match ev.get("__typename").and_then(|t| t.as_str()) {
+            Some("LabeledEvent") => {
+                let name = ev.get("label").and_then(|l| l.get("name")).and_then(|n| n.as_str());
+                if name.is_some_and(|n| n.eq_ignore_ascii_case("stale")) {
+                    // Keep the latest: a revived-then-restaled PR counts in the
+                    // week it most recently went stale.
+                    if let Some(at) = s(&ev, "createdAt") {
+                        if stale_labeled_at.as_deref().is_none_or(|prev| at.as_str() > prev) {
+                            stale_labeled_at = Some(at);
+                        }
+                    }
+                }
+            }
+            // Timeline is ascending, so the last CLOSED event wins — a PR that
+            // was closed, reopened and closed again reports the latest closer.
+            Some("ClosedEvent") => closed_by_login = login(&ev, "actor"),
+            _ => {}
+        }
+    }
+
     let requests_node = node.get("reviewRequests").cloned().unwrap_or(Value::Null);
     let mut requests = Vec::new();
     for rq in requests_node.get("nodes").and_then(|n| n.as_array()).cloned().unwrap_or_default() {
@@ -212,6 +266,9 @@ fn to_ingest(node: &Value) -> Option<(PrIngest, i64)> {
                 changed_files: i(node, "changedFiles"),
                 comment_count: node.get("comments").map_or(0, |c| i(c, "totalCount")),
                 review_total: i(&reviews_node, "totalCount"),
+                closed_by_login,
+                stale_labeled_at,
+                is_stale,
                 reviews_truncated,
                 requests_truncated: i(&requests_node, "totalCount") > 20,
             },

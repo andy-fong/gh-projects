@@ -68,8 +68,9 @@ impl PrFactsRepository for SqlitePrFactsRepository {
                      repo, number, node_id, title, url, state, is_draft,
                      author_login, merged_by_login, gh_created_at, gh_updated_at,
                      merged_at, closed_at, additions, deletions, changed_files,
-                     comment_count, review_total, reviews_truncated, requests_truncated
-                 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     comment_count, review_total, reviews_truncated, requests_truncated,
+                     closed_by_login, stale_labeled_at, is_stale
+                 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON CONFLICT(repo, number) DO UPDATE SET
                      node_id            = excluded.node_id,
                      title              = excluded.title,
@@ -88,6 +89,9 @@ impl PrFactsRepository for SqlitePrFactsRepository {
                      review_total       = excluded.review_total,
                      reviews_truncated  = excluded.reviews_truncated,
                      requests_truncated = excluded.requests_truncated,
+                     closed_by_login    = excluded.closed_by_login,
+                     stale_labeled_at   = excluded.stale_labeled_at,
+                     is_stale           = excluded.is_stale,
                      synced_at          = datetime('now')",
             )
             .bind(&p.repo)
@@ -110,6 +114,9 @@ impl PrFactsRepository for SqlitePrFactsRepository {
             .bind(p.review_total)
             .bind(p.reviews_truncated)
             .bind(p.requests_truncated)
+            .bind(&p.closed_by_login)
+            .bind(&p.stale_labeled_at)
+            .bind(p.is_stale)
             .execute(&mut *tx)
             .await?;
             counts.prs += 1;

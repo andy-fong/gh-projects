@@ -268,7 +268,7 @@ AI-assisted authoring made opening a PR nearly free; reviewing stayed expensive.
 Five sections, ordered diagnosis → explanation → action:
 
 1. **KPI strip** — unreviewed PRs older than 7 days, p90 time-to-first-review,
-   merges nobody approved, review concentration, and AI-review volume.
+   stale-bot closures, review concentration, and AI-review volume.
 2. **Review debt** — per person, with a *What do these columns mean?* toggle in
    the section itself:
 
@@ -290,7 +290,8 @@ Five sections, ordered diagnosis → explanation → action:
    reviewed but opened nothing.
 3. **Weekly trend** — opened vs. reviewed vs. AI reviews over time.
 4. **PR health by repo** — open backlog, median and p90 time-to-first-review,
-   merges with no approval, and the share that never got a human review.
+   merges with no approval, stale PRs, and the share that never got a human
+   review.
 5. **Needs a reviewer** — open PRs with no human review, showing who (if anyone)
    is on the hook. Filter to *AI only* (a bot reviewed it, no human did) or all
    open PRs, and flip between **oldest first** (what's rotting) and **newest
@@ -309,6 +310,28 @@ same end date.
 Two things deliberately ignore the window, because they are about right now
 rather than about a period: the **Queue** column, and the *Needs a reviewer*
 list with its open-backlog KPIs.
+
+### Stale PRs
+
+Where a repo runs a stale workflow (a GitHub Actions job that labels `stale`
+after inactivity and closes the PR a few days later), three numbers are tracked:
+
+- **Closed by stale bot** — PRs that timed out instead of being decided on.
+  This is the end state of the review backlog, which is why it sits next to it.
+- **Marked stale** — labelled in the window, whether or not it was then closed.
+- **Stale right now** — open PRs currently carrying the label.
+
+Labelling and closing are counted as **separate events**, because they are:
+a PR can be labelled and then revived, or labelled and then closed by a *person*
+rather than the bot. Only a closure by an account on the roster's **bot** list
+counts as automation — measured on `kgateway`, 5 of 14 unmerged closures were
+the bot's and one stale-labelled PR was closed by a human, which would have been
+miscounted by a simpler "has the stale label" rule.
+
+The bot is identified through the roster, not a hardcoded name, so
+`github-actions` is seeded as a **bot** and you can reclassify it like any other
+login. Only the most recent stale-labelling is kept per PR, so a PR that goes
+stale, is revived, and goes stale again counts once, in the later week.
 
 ### Tracked repos
 
