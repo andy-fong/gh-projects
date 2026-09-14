@@ -6,3 +6,4 @@ pub mod note_tile;
 pub mod releases_panel;
 pub mod sidebar;
 pub mod tile_wrapper;
+pub mod stats;

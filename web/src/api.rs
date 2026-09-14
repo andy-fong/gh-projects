@@ -428,3 +428,63 @@ pub mod row_order {
         .await
     }
 }
+
+// ---- Team stats ----
+
+pub mod team_stats {
+    use super::*;
+
+    fn qs(weeks: Option<i64>, groups: Option<&str>, repos: &[String]) -> String {
+        let mut q: Vec<String> = Vec::new();
+        if let Some(w) = weeks {
+            q.push(format!("weeks={w}"));
+        }
+        if let Some(g) = groups {
+            if g != "all" {
+                q.push(format!("groups={g}"));
+            }
+        }
+        if !repos.is_empty() {
+            q.push(format!("repos={}", repos.join(",")));
+        }
+        if q.is_empty() {
+            String::new()
+        } else {
+            format!("?{}", q.join("&"))
+        }
+    }
+
+    pub async fn summary(
+        weeks: i64,
+        groups: &str,
+        repos: &[String],
+    ) -> Result<StatsSummary, String> {
+        send_get(&format!(
+            "/api/team-stats/summary{}",
+            qs(Some(weeks), Some(groups), repos)
+        ))
+        .await
+    }
+
+    pub async fn worklist(
+        filter: &str,
+        sort: &str,
+        repos: &[String],
+    ) -> Result<Vec<WorklistRow>, String> {
+        let mut url = format!("/api/team-stats/worklist?filter={filter}&sort={sort}&limit=200");
+        if !repos.is_empty() {
+            url.push_str(&format!("&repos={}", repos.join(",")));
+        }
+        send_get(&url).await
+    }
+
+    pub async fn repos() -> Result<Vec<TrackedRepoStatus>, String> {
+        send_get("/api/team-stats/repos").await
+    }
+
+    /// Incremental sync of every tracked repo. Slow (tens of seconds on a cold
+    /// backfill) — the UI disables its button while this is in flight.
+    pub async fn sync() -> Result<SyncResult, String> {
+        send_json("POST", "/api/team-stats/sync", &()).await
+    }
+}

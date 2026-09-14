@@ -6,3 +6,4 @@ pub mod release_watch;
 pub mod war_room;
 pub mod calendar;
 pub mod team_member;
+pub mod team_stats;

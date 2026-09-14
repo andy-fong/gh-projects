@@ -37,6 +37,7 @@ pub struct AppState {
     pub release_watches_ver: Signal<u32>,
     pub calendars_ver: Signal<u32>,
     pub team_ver: Signal<u32>,
+    pub stats_ver: Signal<u32>,
     /// User-defined field extractors (NOT merged with defaults).
     pub user_extractors: Signal<BTreeMap<String, String>>,
     /// User-defined Slack status emojis (NOT merged with defaults).
@@ -61,6 +62,7 @@ impl AppState {
             release_watches_ver: Signal::new(0),
             calendars_ver: Signal::new(0),
             team_ver: Signal::new(0),
+            stats_ver: Signal::new(0),
             user_extractors: Signal::new(settings.field_extractors),
             user_stage_emojis: Signal::new(settings.stage_emojis),
             team_roster: Signal::new(BTreeMap::new()),
@@ -93,6 +95,9 @@ impl AppState {
     }
     pub fn invalidate_team(mut self) {
         *self.team_ver.write() += 1;
+    }
+    pub fn invalidate_stats(mut self) {
+        *self.stats_ver.write() += 1;
     }
 
     /// Which bucket an item's author falls into, for the `authorGroup` column

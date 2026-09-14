@@ -1654,3 +1654,331 @@ select {
     cursor: pointer;
     border-radius: 50%;
 }
+
+/* ---- Team Stats ---- */
+
+.ts-page {
+    padding: 0 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* .main is the scroll container, so top:0 sticks correctly here. */
+.ts-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--bg);
+    padding: 14px 0 12px;
+    border-bottom: 1px solid var(--border);
+}
+.ts-controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+.ts-controls .page-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+.ts-control-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2px;
+}
+.ts-control-group .chip { padding: 3px 10px; }
+
+.ts-repo-picker { position: relative; }
+/* `.popover` is position:fixed — the existing popovers are cursor-anchored and
+   set viewport coordinates from JS. This one hangs off its button, so it has to
+   be absolute against `.ts-repo-picker`, or `left: 0` means the far left of the
+   screen rather than the left of the button. */
+.ts-repo-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 260px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+/* Sync */
+.ts-sync {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+.ts-sync-freshness {
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+.ts-sync-freshness.stale { color: var(--warn); }
+.ts-sync-result {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    padding-top: 6px;
+}
+.ts-sync-failures { padding: 4px 0 0 2px; }
+.ts-sync-failure { font-size: 12px; }
+
+/* KPI strip */
+.ts-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+}
+.ts-kpi {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+}
+.ts-kpi-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-dim);
+    margin-bottom: 6px;
+}
+.ts-kpi-value {
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}
+.ts-kpi-value.good { color: var(--good); }
+.ts-kpi-value.warn { color: var(--warn); }
+.ts-kpi-value.bad  { color: var(--danger); }
+.ts-kpi-sub {
+    font-size: 11px;
+    color: var(--muted-dim);
+    margin-top: 4px;
+}
+
+/* Sections */
+.ts-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.ts-section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    background: var(--panel-2);
+}
+.ts-section-head .chip { text-transform: none; letter-spacing: 0; }
+.ts-section-body { padding: 6px 2px; }
+.ts-table-wrap { overflow-x: auto; }
+.ts-empty { padding: 28px 20px; text-align: center; }
+.ts-empty h3 { margin: 0 0 8px; font-size: 15px; }
+.ts-empty p { margin: 4px 0; }
+
+/* Scoreboard */
+.ts-table { font-size: 13px; width: 100%; }
+.ts-table td, .ts-table th { padding: 6px 10px; }
+.ts-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ts-table tfoot td {
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-weight: 600;
+}
+.ts-member { display: inline-flex; align-items: center; gap: 7px; }
+.ts-ratio {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    min-width: 72px;
+}
+.ts-ratio-value { font-variant-numeric: tabular-nums; font-weight: 600; }
+.ts-ratio-value.good { color: var(--good); }
+.ts-ratio-value.warn { color: var(--warn); }
+.ts-ratio-value.bad  { color: var(--danger); }
+.ts-bar {
+    width: 72px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--elevated);
+    overflow: hidden;
+}
+.ts-bar-fill { height: 100%; border-radius: 2px; }
+.ts-bar-fill.good { background: var(--good); }
+.ts-bar-fill.warn { background: var(--warn); }
+.ts-bar-fill.bad  { background: var(--danger); }
+.ts-bar-fill.neutral { background: var(--muted-dim); }
+.ts-microbar { display: flex; align-items: center; gap: 7px; }
+.ts-microbar-label { font-size: 11px; color: var(--muted); min-width: 30px; }
+
+/* Chart */
+.ts-chart-wrap { position: relative; padding: 8px 6px 0; }
+.ts-chart { display: block; overflow: visible; }
+.ts-chart-tip {
+    position: absolute;
+    top: 4px;
+    pointer-events: none;
+    z-index: 2;
+    min-width: 160px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    padding: 6px 9px;
+    font-size: 12px;
+}
+.ts-chart-tip-head { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+.ts-chart-tip-row { display: flex; align-items: center; gap: 6px; line-height: 1.7; }
+.ts-chart-tip-val { margin-left: auto; font-variant-numeric: tabular-nums; }
+.ts-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 4px 14px 10px;
+}
+.ts-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+}
+.ts-legend-item.off { color: var(--muted-dim); }
+.ts-legend-item.off .ts-swatch { opacity: 0.3; }
+.ts-swatch { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.ts-spark { display: block; }
+
+/* Worklist */
+.ts-work-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 13px;
+    cursor: pointer;
+}
+.ts-work-row:last-child { border-bottom: none; }
+.ts-work-row:hover { background: rgba(110, 118, 129, 0.1); }
+.ts-work-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ts-work-ref { color: var(--muted); font-size: 12px; flex-shrink: 0; }
+.ts-work-wait { flex-shrink: 0; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-work-nowait { color: var(--warn); }
+.ts-work-ai {
+    flex-shrink: 0;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    background: color-mix(in srgb, #d29922 18%, transparent);
+    color: #d29922;
+}
+.ts-work-more { margin: 10px 12px; }
+.ts-age {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    min-width: 44px;
+}
+.ts-age-fresh { background: color-mix(in srgb, var(--muted) 12%, transparent); color: var(--muted); }
+.ts-age-warn  { background: color-mix(in srgb, #d29922 18%, transparent); color: #d29922; }
+.ts-age-bad   { background: color-mix(in srgb, #f85149 18%, transparent); color: #f85149; }
+
+/* Repos dialog: Team Stats opt-in */
+.ts-track-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--muted);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* Team Stats: column definitions */
+.ts-defs-bar { padding: 6px 12px 2px; }
+.ts-defs-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+}
+.ts-defs-toggle:hover { color: var(--accent); }
+.ts-defs {
+    margin: 6px 12px 10px;
+    padding: 12px 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 12.5px;
+    line-height: 1.55;
+}
+.ts-defs dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(110px, max-content) 1fr;
+    gap: 6px 16px;
+    align-items: baseline;
+}
+.ts-defs dt {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+.ts-defs dd { margin: 0; color: var(--muted); }
+.ts-defs dd b { color: var(--text); font-weight: 600; }
+.ts-defs .hint { margin: 10px 0 0; }
+@media (max-width: 760px) {
+    .ts-defs dl { grid-template-columns: 1fr; gap: 2px; }
+    .ts-defs dd { margin-bottom: 8px; }
+}
+
+/* Team Stats: worklist sort toggle */
+.ts-sort-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-transform: none;
+    letter-spacing: 0;
+}

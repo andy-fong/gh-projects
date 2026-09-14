@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 mod api;
 mod components;
+mod datetime;
 mod field_extractors;
 mod markdown;
 mod pages;
@@ -16,6 +17,7 @@ use pages::calendar::CalendarPage;
 use pages::dashboard::DashboardPage;
 use pages::home::Home;
 use pages::notes::NotesPage;
+use pages::team_stats::TeamStatsPage;
 use pages::war_room::WarRoomPage;
 use state::AppState;
 
@@ -35,6 +37,8 @@ pub enum Route {
     CalendarPage { id: i64 },
     #[route("/notes")]
     NotesPage {},
+    #[route("/team-stats")]
+    TeamStatsPage {},
 }
 
 fn main() {

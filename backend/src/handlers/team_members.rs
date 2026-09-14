@@ -141,7 +141,7 @@ pub async fn refresh_team_members(
 
     for source in sources {
         let cmd = members_command(&source.org_team);
-        let parsed = match run_gh(&cmd) {
+        let parsed = match run_gh(&cmd).await {
             Ok((parsed, _)) => parsed,
             Err(e) => {
                 result.errors.push(format!("{}: {e}", source.org_team));

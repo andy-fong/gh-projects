@@ -27,6 +27,8 @@ use repositories::{
     war_rooms::SqliteWarRoomRepository,
     team_members::SqliteTeamMemberRepository,
     maintenance::SqliteMaintenanceRepository,
+    pr_facts::SqlitePrFactsRepository,
+    team_stats::SqliteTeamStatsRepository,
 };
 use state::AppState;
 
@@ -53,6 +55,9 @@ async fn main() -> anyhow::Result<()> {
         calendars: Arc::new(SqliteCalendarRepository::new(pool.clone())),
         team_members: Arc::new(SqliteTeamMemberRepository::new(pool.clone())),
         maintenance: Arc::new(SqliteMaintenanceRepository::new(pool.clone())),
+        pr_facts: Arc::new(SqlitePrFactsRepository::new(pool.clone())),
+        team_stats: Arc::new(SqliteTeamStatsRepository::new(pool.clone())),
+        stats_sync_lock: Arc::new(tokio::sync::Mutex::new(())),
         db_path: config.db_path(),
         cache_dir: config.cache_dir.clone(),
         cache_ttl_secs: config.cache_ttl_secs,
@@ -102,6 +107,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/calendar-components/:id", put(handlers::calendars::update_component).delete(handlers::calendars::delete_component))
         .route("/api/calendars/:id/events", post(handlers::calendars::create_event))
         .route("/api/calendar-events/:id", put(handlers::calendars::update_event).delete(handlers::calendars::delete_event))
+        // Team stats
+        .route("/api/team-stats/summary", get(handlers::team_stats::get_summary))
+        .route("/api/team-stats/worklist", get(handlers::team_stats::get_worklist))
+        .route("/api/team-stats/repos", get(handlers::team_stats::list_stats_repos))
+        .route("/api/team-stats/sync", post(handlers::team_stats_sync::sync_team_stats))
         // GH CLI
         .route("/api/gh/execute", post(handlers::gh::execute_gh))
         // Cache

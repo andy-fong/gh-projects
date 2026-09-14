@@ -57,7 +57,7 @@ pub fn ReposDialog(on_close: EventHandler<()>) -> Element {
                 }
 
                 for r in items {
-                    RepoRow { key: "{r.id}", id: r.id, name: r.name.clone(), owner_repo: r.owner_repo.clone() }
+                    RepoRow { key: "{r.id}", id: r.id, name: r.name.clone(), owner_repo: r.owner_repo.clone(), track_stats: r.track_stats }
                 }
 
                 div { class: "wr-repo-row",
@@ -93,10 +93,11 @@ pub fn ReposDialog(on_close: EventHandler<()>) -> Element {
 }
 
 #[component]
-fn RepoRow(id: i64, name: String, owner_repo: String) -> Element {
+fn RepoRow(id: i64, name: String, owner_repo: String, track_stats: bool) -> Element {
     let state = use_app_state();
     let mut name_sig = use_signal(|| name.clone());
     let mut repo_sig = use_signal(|| owner_repo.clone());
+    let mut track_sig = use_signal(|| track_stats);
 
     let save = move |_| {
         let name = name_sig.read().trim().to_string();
@@ -108,6 +109,7 @@ fn RepoRow(id: i64, name: String, owner_repo: String) -> Element {
             let _ = api::repos::update(
                 id,
                 &UpdateRepoInput {
+                    track_stats: None,
                     name: Some(name),
                     owner_repo: Some(owner_repo),
                     position: None,
@@ -115,6 +117,22 @@ fn RepoRow(id: i64, name: String, owner_repo: String) -> Element {
             )
             .await;
             state.invalidate_repos();
+        });
+    };
+
+    // Opt this repo in to the Team Stats sync. Off by default: a very busy
+    // upstream repo would swamp the numbers without saying much about the team.
+    let toggle_track = move |_| {
+        let next = !track_sig();
+        track_sig.set(next);
+        spawn(async move {
+            let _ = api::repos::update(
+                id,
+                &UpdateRepoInput { track_stats: Some(next), ..Default::default() },
+            )
+            .await;
+            state.invalidate_repos();
+            state.invalidate_stats();
         });
     };
 
@@ -139,6 +157,14 @@ fn RepoRow(id: i64, name: String, owner_repo: String) -> Element {
                 value: "{repo_sig}",
                 oninput: move |e| repo_sig.set(e.value()),
                 onblur: save,
+            }
+            label { class: "ts-track-toggle", title: "Include this repo in Team Stats",
+                input {
+                    r#type: "checkbox",
+                    checked: track_sig(),
+                    onchange: toggle_track,
+                }
+                span { class: "text-xs", "Stats" }
             }
             button { class: "icon-btn danger", title: "Delete", onclick: remove,
                 Icon { width: 16, height: 16, icon: LdTrash2 }

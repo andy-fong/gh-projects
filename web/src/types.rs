@@ -105,6 +105,10 @@ pub struct Repo {
     pub name: String,
     pub owner_repo: String,
     pub position: i64,
+    /// Opt in to the Team Stats sync. `serde(default)` so an older backend
+    /// response still deserializes.
+    #[serde(default)]
+    pub track_stats: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -123,6 +127,8 @@ pub struct UpdateRepoInput {
     pub owner_repo: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_stats: Option<bool>,
 }
 
 // ---- Team roster (author groups) ----
@@ -509,4 +515,198 @@ pub struct GhExecuteResponse {
 #[derive(Clone, Debug, Deserialize)]
 pub struct RowOrderResponse {
     pub order: Vec<String>,
+}
+
+// ---- Team stats ----
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
+pub struct PersonStat {
+    pub login: String,
+    pub member_group: String,
+    /// Excludes still-draft PRs — they ask nobody for review.
+    pub prs_opened: i64,
+    #[serde(default)]
+    pub prs_draft: i64,
+    pub prs_merged: i64,
+    pub prs_merged_without_review: i64,
+    /// Distinct PRs (not their own) they left a human review on.
+    pub prs_reviewed: i64,
+    pub review_events: i64,
+    pub approvals: i64,
+    pub changes_requested: i64,
+    pub reviews_received: i64,
+    pub open_review_requests: i64,
+    pub last_review_at: Option<String>,
+}
+
+impl PersonStat {
+    /// Share of the PRs they opened in the window that have merged so far.
+    ///
+    /// "So far" is load-bearing: Merged counts by when the PR was *opened*, so
+    /// a PR opened late in the window may simply not have had time yet. A low
+    /// rate at the recent end is expected, not a signal.
+    pub fn merge_ratio(&self) -> Option<f64> {
+        if self.prs_opened == 0 {
+            None
+        } else {
+            Some(self.prs_merged as f64 / self.prs_opened as f64)
+        }
+    }
+
+    /// PRs reviewed per PR opened. `None` when they opened nothing — rendered
+    /// as a muted "∞", never as a green number: someone who only reviews is
+    /// not "infinitely good", and treating it as a score makes the whole
+    /// table arguable.
+    pub fn ratio(&self) -> Option<f64> {
+        if self.prs_opened == 0 {
+            None
+        } else {
+            Some(self.prs_reviewed as f64 / self.prs_opened as f64)
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
+pub struct RepoHealth {
+    pub repo: String,
+    pub open_total: i64,
+    pub open_draft: i64,
+    pub open_unreviewed: i64,
+    pub open_unreviewed_7d: i64,
+    pub open_bot_reviewed_only: i64,
+    pub oldest_open_unreviewed_days: Option<i64>,
+    pub merged_in_window: i64,
+    pub merged_without_human_review: i64,
+    #[serde(default)]
+    pub merged_without_approval: i64,
+    pub opened_in_window: i64,
+    pub median_ttfr_hours: Option<f64>,
+    pub p90_ttfr_hours: Option<f64>,
+    pub pct_never_reviewed: Option<f64>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
+pub struct WeekPoint {
+    pub week_start: String,
+    pub prs_opened: i64,
+    pub prs_merged: i64,
+    pub prs_merged_without_review: i64,
+    pub prs_reviewed: i64,
+    pub review_events: i64,
+    pub bot_review_events: i64,
+    pub active_reviewers: i64,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
+pub struct StatsTotals {
+    pub prs_opened: i64,
+    pub prs_merged: i64,
+    pub prs_merged_without_review: i64,
+    #[serde(default)]
+    pub merged_without_approval: i64,
+    pub open_unreviewed: i64,
+    pub open_unreviewed_7d: i64,
+    pub review_events: i64,
+    pub bot_review_events: i64,
+    pub self_review_events: i64,
+    pub active_reviewers: i64,
+    pub median_ttfr_hours: Option<f64>,
+    pub p90_ttfr_hours: Option<f64>,
+    pub top2_review_share: Option<f64>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
+pub struct MemberTrend {
+    pub login: String,
+    pub opened: Vec<i64>,
+    pub reviewed: Vec<i64>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct StatsSummary {
+    pub since: String,
+    pub until: String,
+    /// Last day actually included. `until` is exclusive, so showing it in the
+    /// header would name a date the data does not reach.
+    #[serde(default)]
+    pub through: String,
+    pub weeks: i64,
+    pub repos: Vec<String>,
+    pub last_synced_at: Option<String>,
+    pub totals: StatsTotals,
+    pub people: Vec<PersonStat>,
+    pub repo_health: Vec<RepoHealth>,
+    pub trends: Vec<WeekPoint>,
+    pub member_trends: Vec<MemberTrend>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct WorklistRow {
+    pub repo: String,
+    pub number: i64,
+    pub title: String,
+    pub url: String,
+    pub author_login: Option<String>,
+    pub author_group: String,
+    pub gh_created_at: String,
+    pub gh_updated_at: String,
+    pub age_days: i64,
+    pub idle_days: i64,
+    pub size: i64,
+    pub changed_files: i64,
+    pub human_review_events: i64,
+    pub bot_review_events: i64,
+    pub self_review_events: i64,
+    pub requested_reviewers: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
+pub struct IngestCounts {
+    pub prs: i64,
+    pub reviews: i64,
+    pub requests: i64,
+    pub skipped: i64,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct SyncRepoResult {
+    pub repo: String,
+    pub mode: String,
+    pub pages: i64,
+    pub counts: IngestCounts,
+    pub status: String,
+    pub error: Option<String>,
+    pub updated_cursor: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct RateLimitInfo {
+    pub cost_total: i64,
+    pub remaining: i64,
+    pub reset_at: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct SyncResult {
+    pub started_at: String,
+    pub finished_at: String,
+    pub repos: Vec<SyncRepoResult>,
+    pub errors: Vec<String>,
+    pub rate_limit: RateLimitInfo,
+    pub counts: IngestCounts,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct TrackedRepoStatus {
+    pub repo_id: i64,
+    pub name: String,
+    pub owner_repo: String,
+    pub track_stats: bool,
+    pub pr_count: i64,
+    pub review_count: i64,
+    pub last_sync_at: Option<String>,
+    pub last_sync_status: Option<String>,
+    pub last_error: Option<String>,
+    pub backfilled: bool,
+    pub updated_cursor: Option<String>,
 }

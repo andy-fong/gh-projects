@@ -12,6 +12,7 @@ A custom GitHub dashboard — tiles that each run a `gh` CLI command to fetch li
 - **Note tiles** — embed a private note directly on a dashboard
 - **Notes page** — full CRUD for private Markdown notes, optionally linked to a GitHub repo / issue / PR; one-click link to open the issue or PR on GitHub
 - **War Rooms** — a free-style tracker for coordinated efforts (e.g. patching a CVE across several repos/releases). A war room is a list of **groups** (each bound to a repo), and each group holds **items** (a release/PR/issue) with a manual lifecycle **stage**, a free-text note, a checklist of steps, and an optional GitHub PR/issue link. Items inherit their group's repo. Repos come from a reusable, global **registry** (sidebar → *Repos*) so the same repos can be selected across war rooms.
+- **Team Stats** — a PR authoring-vs-review dashboard across several repos. Answers "who opens PRs and who actually reviews them", tracks time-to-first-review and the unreviewed backlog, and lists the open PRs nobody has looked at. GitHub facts are cached locally in SQLite so each refresh only fetches what changed.
 - **Calendar** — a release calendar that visualises planned and actual ship dates across multiple components on a monthly grid. Each calendar dashboard has colour-coded **components** (e.g. products or services) and **events** (a version string tied to a planned release date). Events carry a **status badge** (On track · At risk · Delayed · Released) and an optional **actual release date**; a countdown badge shows days remaining until the planned date. Event notes render as Markdown below the release row.
 
 ## Prerequisites
@@ -187,7 +188,8 @@ Each layer only needs to declare what it changes. Sorting on a column always use
 
 **Settings → Export backup** writes a single JSON file covering dashboards
 (with tiles, layout, row priority and per-tile column state), notes, war rooms,
-calendars, release watches, the repo registry, and the team roster. **Restore
+calendars, release watches, the repo registry (including its Team Stats
+`track_stats` flags), and the team roster. **Restore
 backup** reads one back.
 
 Restore **replaces** everything it manages — it wipes those tables first, then
@@ -211,7 +213,14 @@ bad file leaves your data untouched. References that simply can't be resolved
 are cleared rather than failing the restore, and the response reports how many:
 `links_restored`, `links_dropped`, `release_watches_skipped`.
 
-Backup files are versioned (currently `4`). Older files still restore — fields
+The Team Stats **fact tables are deliberately excluded** from backups. They are a
+re-fetchable cache of public GitHub data, and restoring a sync cursor next to
+zero facts would make every later sync fetch only the last few days, leaving the
+dashboard silently empty. A restored database simply re-backfills. The per-repo
+`track_stats` flag *is* configuration, so it does ride along. Restore never
+touches the fact tables, so they survive a restore on the same machine.
+
+Backup files are versioned (currently `5`). Older files still restore — fields
 added since are optional, and a pre-`4` file without a `repos` section falls
 back to treating `repo_id`s as local ids.
 
@@ -250,6 +259,103 @@ stopping the others.
 
 Each login belongs to exactly one group, matched case-insensitively. The roster
 and its import sources are included in Backup/Restore.
+
+## Team Stats
+
+AI-assisted authoring made opening a PR nearly free; reviewing stayed expensive.
+**Team Stats** (sidebar → *Team Stats*) makes the resulting imbalance visible.
+
+Five sections, ordered diagnosis → explanation → action:
+
+1. **KPI strip** — unreviewed PRs older than 7 days, p90 time-to-first-review,
+   merges nobody approved, review concentration, and AI-review volume.
+2. **Review debt** — per person, with a *What do these columns mean?* toggle in
+   the section itself:
+
+   | Column | Meaning |
+   |---|---|
+   | **Opened** | PRs they authored, *created* inside the window, **that are asking for review**. Still-draft PRs are excluded — they request nothing, and counting them would penalise anyone who works in drafts |
+   | **Drafts** | How many of their PRs are still drafts. Context only; never counted in Opened, so it moves neither ratio |
+   | **Merged** | How many of those have since merged — counted by when the PR was *opened*, not when it merged |
+   | **Merged / Opened** | Share of the PRs they opened that have merged **so far**. Merged counts by when a PR was *opened*, so one opened late in the window may not have had time to land — a low rate at the recent end is expected |
+   | **Reviewed** | Distinct PRs *by someone else* they reviewed during the window; each PR counted once. Self-reviews and bots excluded |
+   | **Approvals** | Times they hit *Approve* on someone else's PR in the window. Counts approval **events** where Reviewed counts distinct PRs, so they differ in both directions — re-approving after changes adds here only; commenting without approving adds to Reviewed only |
+   | **Received** | Human reviews landed on the PRs they opened, over those PRs' whole lifetime — the review capacity they consumed |
+   | **Queue** | Open non-draft PRs where they're a requested reviewer and haven't reviewed yet. A live snapshot, not window-scoped |
+   | **Reviewed / Opened** | The reciprocity number. Below 1.00 they ask for more review than they give. `∞` when they opened nothing — undefined, not a score |
+   | **Trend** | Distinct PRs reviewed per week; the same vertical scale on every row |
+
+   Everything except Queue is scoped to the window and to the tracked repos.
+   A member with no activity at all shows `—`; `∞` is reserved for someone who
+   reviewed but opened nothing.
+3. **Weekly trend** — opened vs. reviewed vs. AI reviews over time.
+4. **PR health by repo** — open backlog, median and p90 time-to-first-review,
+   merges with no approval, and the share that never got a human review.
+5. **Needs a reviewer** — open PRs with no human review, showing who (if anyone)
+   is on the hook. Filter to *AI only* (a bot reviewed it, no human did) or all
+   open PRs, and flip between **oldest first** (what's rotting) and **newest
+   first** (what just landed in the queue). Click a row to open the usual
+   detail panel.
+
+### The reporting window
+
+The selector offers 1, 4, 8, 12 and 26 weeks, and each means that many
+**complete** Monday-start weeks. The current, still-running week is always
+excluded: a partial week drags every rate and average down for no reason other
+than the clock, and on a Monday morning it would be empty. So every window ends
+on the most recent Sunday, and longer windows simply reach further back from the
+same end date.
+
+Two things deliberately ignore the window, because they are about right now
+rather than about a period: the **Queue** column, and the *Needs a reviewer*
+list with its open-backlog KPIs.
+
+### Tracked repos
+
+Stats only cover repos you opt in: sidebar → *Repos* → tick **Stats**. Leave very
+busy upstream repos off — they dominate the numbers without telling you much
+about your team.
+
+### Syncing
+
+There is no background job. Hit **Sync now** when you want fresh numbers.
+
+The first sync for a repo backfills from **2026-08-01**; later syncs fetch only
+PRs updated since the last cursor, plus a full sweep of open PRs so the
+backlog list is always exact (that sweep is why PRs older than the backfill
+floor still show up in *Needs a reviewer*). For five repos that is roughly 450
+PRs and 30 GraphQL points on a cold run, and ~15 points afterwards.
+
+One repo failing never aborts the others — its error is reported and its cursor
+left untouched, so the next run re-covers the same window.
+
+### What counts as a review
+
+Three exclusions do most of the work, and getting them wrong would invert the
+signal this page exists to show:
+
+- **Self-reviews don't count.** Authors commenting on their own PRs is common.
+- **Bot reviews don't count** as human reviews — they get their own column.
+  `copilot-pull-request-reviewer` is seeded into the roster as a **bot** because
+  it carries no `[bot]` login suffix and, measured across five repos, submitted
+  more reviews than any human.
+- **Dismissed reviews** still count as a review *given* (real human effort) but
+  not as an approval.
+
+The bot/self rules are evaluated live against the **Team** roster, so
+reclassifying a login takes effect on all historical numbers immediately —
+no re-sync needed.
+
+A few honest caveats the numbers can't fix:
+
+- **Time-to-first-review is measured only over PRs that got one**, so it is
+  always shown next to the share that never did. A median over the reviewed
+  subset looks healthiest exactly when the backlog is worst.
+- **Draft history is invisible** — only the *current* draft flag is available.
+  So "still a draft" is accurate, but a PR that sat in draft for a week and was
+  then marked ready counts as a normal PR, and its time-to-first-review is
+  measured from when it was opened rather than from when it became reviewable.
+- Week buckets are **Monday-start UTC**.
 
 ## How notes work
 
@@ -418,6 +524,10 @@ gh-projects/
 | PUT/DELETE | `/api/calendar-components/:id` | Update / delete a component |
 | POST | `/api/calendars/:id/events` | Create an event in a calendar |
 | PUT/DELETE | `/api/calendar-events/:id` | Update / delete an event |
+| GET | `/api/team-stats/summary` | KPIs, per-person debt, repo health and weekly trends (`?weeks&groups&repos`) |
+| GET | `/api/team-stats/worklist` | Open PRs needing a reviewer (`?filter=unreviewed\|bot_only\|all`) |
+| GET | `/api/team-stats/repos` | Repo registry with stats opt-in and per-repo sync state |
+| POST | `/api/team-stats/sync` | Incremental sync of every tracked repo |
 | POST | `/api/gh/execute` | Run a `gh` CLI command, returns JSON output (`cached: true` when served from disk) |
 | POST | `/api/cache/invalidate` | Mark all current cache entries as invalidated (writes a timestamp; no files are deleted) |
 | GET | `/api/cache/status` | Return current `cache_dir`, `ttl_secs`, and `invalidated_at` timestamp |

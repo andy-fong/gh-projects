@@ -2,9 +2,9 @@ use std::sync::Arc;
 use std::path::PathBuf;
 use crate::repositories::{
     CalendarRepository, DashboardRepository, MaintenanceRepository, NoteRepository,
-    ReleaseWatchRepository,
-    RepoRepository, RowOrderRepository, TeamMemberRepository, TileRepository,
-    WarRoomRepository,
+    PrFactsRepository, ReleaseWatchRepository,
+    RepoRepository, RowOrderRepository, TeamMemberRepository, TeamStatsRepository,
+    TileRepository, WarRoomRepository,
 };
 
 #[derive(Clone)]
@@ -19,6 +19,11 @@ pub struct AppState {
     pub calendars: Arc<dyn CalendarRepository>,
     pub team_members: Arc<dyn TeamMemberRepository>,
     pub maintenance: Arc<dyn MaintenanceRepository>,
+    pub pr_facts: Arc<dyn PrFactsRepository>,
+    pub team_stats: Arc<dyn TeamStatsRepository>,
+    /// Serialises Team Stats syncs — two concurrent runs would race the same
+    /// per-repo cursors.
+    pub stats_sync_lock: Arc<tokio::sync::Mutex<()>>,
     /// Path to the SQLite file, for the pre-restore snapshot. Empty when the
     /// database has no file (e.g. `sqlite::memory:`).
     pub db_path: PathBuf,

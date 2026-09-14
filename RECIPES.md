@@ -66,6 +66,52 @@ pr list --repo kgateway-dev/kgateway --search "created:>{{date:-14d}} -author:an
 > fan-out instead (see "Same command across multiple repos" below, with an
 > `{{authors}}` array), or just filter the `authorGroup` column.
 
+### Who reviewed what, and when
+
+`gh` has no good answer for "PRs this person reviewed". `gh search prs --reviewed-by X`
+finds them but carries **no review-date qualifier**, so you cannot bucket reviews
+by week — which is why the Team Stats page uses GraphQL instead. Each review node
+carries an exact `submittedAt`:
+
+```
+api graphql -f query='
+query($q: String!) {
+  search(query: $q, type: ISSUE, first: 25) {
+    issueCount
+    nodes { ... on PullRequest {
+      number title url state createdAt mergedAt
+      author { login } mergedBy { login }
+      reviews(first: 50) { totalCount nodes { author { login } state submittedAt } }
+      reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } ... on Team { slug } } } }
+    } } } }' -f q='repo:kgateway-dev/kgateway is:pr created:>=2026-08-01'
+```
+
+Costs **1 rate-limit point per page of 25 PRs**. Always add `sort:created-asc`
+when paginating: `createdAt` is immutable, so cursors stay stable, whereas
+sorting by `updated` lets a PR touched mid-run jump pages and be skipped.
+
+Add `rateLimit { cost remaining resetAt }` at the top level to watch the budget.
+
+### PRs that still need a reviewer
+
+```
+search prs --repo kgateway-dev/kgateway --state open --review none --json number,title,author,createdAt,url
+```
+
+`--review none` is the quick version. It counts a bot's review as a review,
+though — for "no *human* has reviewed this", use the Team Stats page, which
+excludes bots and self-reviews against your roster.
+
+### PRs awaiting your review
+
+```
+search prs --review-requested @me --state open --json number,title,repository,createdAt,url
+```
+
+Swap `@me` for a team (`--review-requested kgateway-dev/kgateway-api-owners`) to see
+what a whole team is sitting on — often the reason nothing gets picked up is that
+a PR is assigned to a team rather than a person.
+
 ---
 
 ## Issues

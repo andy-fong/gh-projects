@@ -8,6 +8,9 @@ pub struct Repo {
     pub name: String,
     pub owner_repo: String,
     pub position: i64,
+    /// Opt in to the Team Stats sync. Off by default: a busy upstream repo
+    /// (envoyproxy/envoy is ~5k PRs/yr) would swamp the numbers.
+    pub track_stats: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -16,6 +19,7 @@ pub struct Repo {
 pub struct CreateRepoInput {
     pub name: String,
     pub owner_repo: String,
+    pub track_stats: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -23,4 +27,5 @@ pub struct UpdateRepoInput {
     pub name: Option<String>,
     pub owner_repo: Option<String>,
     pub position: Option<i64>,
+    pub track_stats: Option<bool>,
 }

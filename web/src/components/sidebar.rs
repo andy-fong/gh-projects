@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
     LdCalendar, LdFolderGit2, LdGithub, LdLayoutDashboard, LdPlus, LdRefreshCcw, LdSettings,
-    LdSiren, LdStickyNote, LdTag, LdUsers,
+    LdLineChart, LdSiren, LdStickyNote, LdTag, LdUsers,
 };
 use dioxus_free_icons::Icon;
 
@@ -252,6 +252,12 @@ pub fn Sidebar(on_toggle_releases: EventHandler<()>) -> Element {
                 Link { to: Route::NotesPage {}, class: "nav-item",
                     Icon { width: 16, height: 16, icon: LdStickyNote }
                     "Notes"
+                }
+                Link {
+                    to: Route::TeamStatsPage {},
+                    class: if matches!(route, Route::TeamStatsPage {}) { "nav-item active" } else { "nav-item" },
+                    Icon { width: 16, height: 16, icon: LdLineChart }
+                    "Team Stats"
                 }
                 button {
                     class: "nav-item subtle",

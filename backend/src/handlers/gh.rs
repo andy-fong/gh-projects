@@ -3,8 +3,9 @@ use chrono::{Duration, Local};
 use serde::{Deserialize, Serialize};
 use sha1::{Sha1, Digest};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::process::Command;
+use tokio::time::timeout;
 use crate::{error::AppError, state::AppState};
 
 #[derive(Deserialize)]
@@ -148,7 +149,7 @@ pub async fn execute_gh(
     }
 
     // Cache miss — run gh
-    let (parsed, stdout) = run_gh(cmd_str)?;
+    let (parsed, stdout) = run_gh(cmd_str).await?;
 
     // Best-effort cache write — never fail the request on write errors
     if let Some(parent) = path.parent() {
@@ -159,12 +160,29 @@ pub async fn execute_gh(
     Ok(Json(GhExecuteResponse { output: parsed, raw: stdout, cached: false }))
 }
 
-/// Run `gh <cmd>` and parse stdout as JSON, bypassing the disk cache. Returns
-/// `(parsed, raw)`; non-JSON output comes back as a `Value::String`.
-pub(crate) fn run_gh(cmd: &str) -> Result<(serde_json::Value, String), AppError> {
-    let output = Command::new("gh")
-        .args(parse_args(cmd))
-        .output()
+/// How long a single `gh` invocation may run before it is killed. A hung `gh`
+/// must not wedge a multi-call sync.
+const GH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Run `gh` with an explicit argv and parse stdout as JSON. Bypasses the disk
+/// cache (which lives in `execute_gh`, not here).
+///
+/// Prefer this over [`run_gh`] whenever an argument may contain newlines,
+/// spaces or quotes — a GraphQL document, for instance. [`parse_args`] would
+/// shred such an argument into dozens of argv entries; passing the vector
+/// directly is the only way to keep it intact.
+pub(crate) async fn run_gh_args(args: &[String]) -> Result<(serde_json::Value, String), AppError> {
+    let child = Command::new("gh")
+        .args(args)
+        .kill_on_drop(true)
+        .output();
+
+    let output = timeout(GH_TIMEOUT, child)
+        .await
+        .map_err(|_| AppError::Command(format!(
+            "gh timed out after {}s",
+            GH_TIMEOUT.as_secs()
+        )))?
         .map_err(|e| AppError::Command(format!("Failed to run gh: {e}")))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -178,6 +196,12 @@ pub(crate) fn run_gh(cmd: &str) -> Result<(serde_json::Value, String), AppError>
         .unwrap_or_else(|_| serde_json::Value::String(stdout.clone()));
 
     Ok((parsed, stdout))
+}
+
+/// Run `gh <cmd>` and parse stdout as JSON, bypassing the disk cache. Returns
+/// `(parsed, raw)`; non-JSON output comes back as a `Value::String`.
+pub(crate) async fn run_gh(cmd: &str) -> Result<(serde_json::Value, String), AppError> {
+    run_gh_args(&parse_args(cmd)).await
 }
 
 pub async fn invalidate_cache(

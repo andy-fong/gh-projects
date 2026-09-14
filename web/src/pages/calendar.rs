@@ -5,72 +5,11 @@ use dioxus_free_icons::icons::ld_icons::{
 use dioxus_free_icons::Icon;
 
 use crate::api;
+use crate::datetime::*;
 use crate::state::use_app_state;
 use crate::types::*;
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
-
-fn today_ymd() -> (i32, i32, i32) {
-    let d = js_sys::Date::new_0();
-    (
-        d.get_full_year() as i32,
-        d.get_month() as i32 + 1,
-        d.get_date() as i32,
-    )
-}
-
-fn add_months(year: i32, month: i32, delta: i32) -> (i32, i32) {
-    let total = (year * 12 + month - 1) + delta;
-    (total.div_euclid(12), total.rem_euclid(12) + 1)
-}
-
-fn days_in_month(year: i32, month: i32) -> i32 {
-    match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 => 29,
-        _ => 28,
-    }
-}
-
-// Tomohiko Sakamoto: 0=Sun … 6=Sat
-fn day_of_week(year: i32, month: i32, day: i32) -> i32 {
-    let t = [0i32, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
-    let y = if month < 3 { year - 1 } else { year };
-    (y + y / 4 - y / 100 + y / 400 + t[(month - 1) as usize] + day).rem_euclid(7)
-}
-
-fn full_month_name(month: i32) -> &'static str {
-    [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ][(month - 1) as usize]
-}
-
-fn short_month_name(month: i32) -> &'static str {
-    [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ][(month - 1) as usize]
-}
-
-fn parse_date(s: &str) -> Option<(i32, i32, i32)> {
-    let mut p = s.splitn(3, '-');
-    Some((
-        p.next()?.parse().ok()?,
-        p.next()?.parse().ok()?,
-        p.next()?.parse().ok()?,
-    ))
-}
 
 // Display name for calendar pills: short_name if set, else full name.
 fn comp_display_name(c: &CalendarComponent) -> &str {
@@ -108,14 +47,6 @@ fn status_css(s: &str) -> &'static str {
     }
 }
 
-// Julian Day Number — exact integer day arithmetic, no external crate needed.
-fn jdn(y: i32, m: i32, d: i32) -> i32 {
-    let a = (14 - m) / 12;
-    let y2 = y + 4800 - a;
-    let m2 = m + 12 * a - 3;
-    d + (153 * m2 + 2) / 5 + 365 * y2 + y2 / 4 - y2 / 100 + y2 / 400 - 32045
-}
-
 // Auto-pick "released" or "on_track" based on date vs today.
 // Only used as a default — doesn't override "at_risk" / "delayed".
 fn auto_status(release_date: &str) -> String {
@@ -144,14 +75,7 @@ fn countdown(release: &str, ty: i32, tm: i32, td: i32) -> Option<(String, &'stat
             format!("in ~{}mo", delta / 30)
         }
     } else {
-        let ago = -delta;
-        if ago < 14 {
-            format!("{ago}d ago")
-        } else if ago < 90 {
-            format!("{}w ago", ago / 7)
-        } else {
-            format!("~{}mo ago", ago / 30)
-        }
+        ago_label(-delta)
     };
     let modifier = if delta == 0 {
         "today"

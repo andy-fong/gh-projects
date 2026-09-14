@@ -130,6 +130,10 @@ pub struct BackupRepo {
     pub orig_id: i64,
     pub name: String,
     pub owner_repo: String,
+    /// Team Stats opt-in. Config, so it is backed up — unlike the PR fact
+    /// tables themselves, which are deliberately excluded (see `export_backup`).
+    #[serde(default)]
+    pub track_stats: bool,
 }
 
 // ── Team roster ───────────────────────────────────────────────────────────────
@@ -431,6 +435,17 @@ pub async fn export_backup(
 
     // Repo registry — war-room groups and release watches point at these by
     // id, so a backup without them can't be restored onto a different DB.
+    //
+    // Note: `repos.track_stats` rides along here because it is configuration,
+    // but the Team Stats fact tables (pr_facts, pr_review_facts,
+    // pr_review_requests, stats_sync_state) are deliberately NOT exported.
+    // They are a re-fetchable cache of public GitHub data, and restoring a
+    // sync cursor next to zero fact rows would make every later sync fetch
+    // only the last few days — leaving the dashboard permanently and silently
+    // empty. Omitting them means a restored DB re-backfills from scratch,
+    // which is slow and correct. `restore_backup` must not wipe them either:
+    // the facts are keyed by the "owner/repo" string, never by repos.id, so
+    // they stay valid across a restore that renumbers the registry.
     let backup_repos = state
         .repos
         .list()
@@ -440,11 +455,12 @@ pub async fn export_backup(
             orig_id: r.id,
             name: r.name,
             owner_repo: r.owner_repo,
+            track_stats: r.track_stats,
         })
         .collect();
 
     Ok(Json(BackupExport {
-        version: 4,
+        version: 5,
         exported_at: Utc::now().to_rfc3339(),
         dashboards: backup_dashboards,
         notes: backup_notes,
@@ -502,6 +518,7 @@ pub async fn restore_backup(
                         .create(CreateRepoInput {
                             name: br.name.clone(),
                             owner_repo: br.owner_repo.clone(),
+                            track_stats: Some(br.track_stats),
                         })
                         .await?
                         .id
